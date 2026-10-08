@@ -1,0 +1,734 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="aw-token" content="%%AW_TOKEN%%">
+<title>Agents do Wash</title>
+<style>
+  :root { --bg:#f3ede4; --panel:rgba(255,255,255,.82); --ink:#2b2a33; --muted:#7a7685; --accent:#d97757; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; overflow:hidden; background:var(--bg); color:var(--ink);
+    font: 13px/1.4 ui-sans-serif, -apple-system, "SF Pro Text", system-ui, sans-serif; }
+  #scene { position:fixed; inset:0; }
+  #hud { position:fixed; top:16px; left:16px; display:flex; gap:10px; align-items:center; pointer-events:none; }
+  #hud h1 { margin:0; font-size:18px; letter-spacing:-.02em; }
+  #home { pointer-events:auto; border:0; cursor:pointer; font:inherit; }
+  .pill { background:var(--panel); backdrop-filter: blur(8px); padding:6px 12px; border-radius:999px;
+    box-shadow:0 2px 10px rgba(0,0,0,.06); font-variant-numeric: tabular-nums; }
+  #status::before { content:'●'; margin-right:6px; color:#c9c4bb; }
+  #status.live::before { color:#4caf50; }
+  #side { position:fixed; top:16px; right:16px; bottom:16px; width:320px; display:flex; flex-direction:column; gap:10px; }
+  .card { background:var(--panel); backdrop-filter: blur(10px); border-radius:14px; padding:12px 14px;
+    box-shadow:0 4px 20px rgba(0,0,0,.07); }
+  .card h2 { margin:0 0 8px; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
+  #roster { max-height:38vh; overflow:auto; }
+  .agent { display:flex; align-items:center; gap:8px; padding:5px 4px; border-radius:8px; cursor:pointer; }
+  .agent:hover { background:rgba(0,0,0,.04); }
+  .agent .dot { width:10px; height:10px; border-radius:50%; flex:none; }
+  .agent .nm { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .agent .nm small { color:var(--muted); }
+  .agent .branch { color:var(--muted); margin-right:-2px; }
+  .agent .tk { color:var(--muted); font-variant-numeric: tabular-nums; }
+  #feedCard { flex:1; min-height:0; display:flex; flex-direction:column; }
+  #feed { flex:1; overflow:auto; display:flex; flex-direction:column; gap:6px; }
+  .ev { padding:6px 8px; border-radius:8px; background:rgba(0,0,0,.03); border-left:3px solid #ccc; }
+  .ev b { font-weight:600; }
+  .ev .meta { color:var(--muted); font-size:11px; }
+  #empty { position:fixed; left:50%; bottom:28px; transform:translateX(-50%); }
+  /* terminal da sessão */
+  #composer { --t-bg:#1c1b22; --t-fg:#e8e4dc; --t-dim:#8d8996; --t-line:rgba(255,255,255,.08);
+    position:fixed; left:16px; bottom:16px; width:min(780px, calc(100% - 368px)); height:min(52vh, 560px);
+    display:flex; flex-direction:column; background:var(--t-bg); color:var(--t-fg); border-radius:14px;
+    box-shadow:0 12px 40px rgba(0,0,0,.35); overflow:hidden;
+    font: 12.5px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  #composer[hidden] { display:none; }
+  #composer .who { display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid var(--t-line);
+    font: 600 12px -apple-system, system-ui, sans-serif; }
+  #composer .who .dot { width:10px; height:10px; border-radius:50%; }
+  #composer .who b { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #composer .who small { color:var(--t-dim); font-weight:400; }
+  #cSub { padding:6px 12px; border-bottom:1px solid var(--t-line); }
+  #cSub a { color:#f0a27f; }
+  #termLog { flex:1; overflow:auto; padding:10px 12px; display:flex; flex-direction:column; gap:6px; }
+  .tl { white-space:pre-wrap; word-break:break-word; }
+  .tl.user { color:#f0a27f; }
+  .tl.user::before { content:'❯ '; }
+  .tl.text::before { content:'⏺ '; color:var(--t-fg); }
+  .tl.tool::before { content:'⏺ '; color:#5fd38d; }
+  .tl.tool b { font-weight:700; }
+  .tl.result { color:var(--t-dim); padding-left:2ch; }
+  .tl.result::before { content:'⎿ '; }
+  .tl.result.err { color:#ff7b72; }
+  .tl.result .more { color:#7aa7ff; cursor:pointer; }
+  .tl.sys { color:var(--t-dim); font-style:italic; }
+  .tl.sys.err { color:#ff7b72; }
+  #composer .row { display:flex; align-items:flex-start; gap:8px; padding:8px 12px; border-top:1px solid var(--t-line); }
+  #composer .row .ps { color:#f0a27f; line-height:30px; }
+  #composer textarea { flex:1; resize:none; min-height:30px; max-height:140px; border:0; padding:5px 0; font:inherit;
+    background:transparent; color:var(--t-fg); }
+  #composer textarea:focus { outline:none; }
+  #composer textarea:disabled { opacity:.45; }
+  #cStatus { padding:0 12px 8px; color:var(--t-dim); font: 11px -apple-system, system-ui, sans-serif; min-height:1em; }
+  #cStatus.err { color:#ff7b72; }
+  #composer button { border:0; border-radius:8px; padding:6px 12px; font: 600 12px -apple-system, system-ui, sans-serif; cursor:pointer; background:var(--accent); color:#fff; }
+  #composer button.ghost { background:transparent; color:var(--t-dim); padding:2px 6px; font-size:14px; }
+  #composer button.warn { background:#c0392b; }
+  #composer button:disabled { opacity:.45; cursor:default; }
+  .hint { color:var(--muted); font-size:12px; }
+  @media (max-width: 720px) { #side { top:auto; left:16px; width:auto; height:34vh; } #composer { width:auto; right:16px; bottom:calc(34vh + 26px); height:44vh; } }
+</style>
+</head>
+<body>
+<div id="scene"></div>
+<div id="hud">
+  <h1>🏢 Agents do Wash</h1>
+  <span id="status" class="pill">conectando…</span>
+  <span id="tokens" class="pill">0 tokens</span>
+  <span id="botpill" class="pill" hidden></span>
+  <button id="home" class="pill" title="Visão geral">🏠</button>
+</div>
+<div id="side">
+  <div class="card"><h2>Moradores <span class="hint" style="text-transform:none;letter-spacing:0">· clique para falar</span></h2><div id="roster"></div></div>
+  <div class="card" id="feedCard"><h2>Ao vivo</h2><div id="feed"></div></div>
+</div>
+<div id="composer" hidden>
+  <div class="who"><span class="dot" id="cDot"></span><b id="cTo"></b><button class="ghost" id="cClose" title="Fechar (Esc)">✕</button></div>
+  <div id="cSub" class="hint" hidden></div>
+  <div id="termLog"></div>
+  <div class="row"><span class="ps">❯</span>
+    <textarea id="cText" rows="1" placeholder="Mensagem para o agente (Enter envia, Shift+Enter quebra a linha)"></textarea>
+    <button class="warn" id="cForce" hidden>Enviar mesmo assim</button><button id="cSend">Enviar</button></div>
+  <div id="cStatus"></div>
+</div>
+<div id="empty" class="pill">Nenhum agente ativo — rode o Claude Code ou abra <a href="?demo">?demo</a></div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { buildWorld } from './office.js';
+import { makeBuddy } from './buddy.js';
+
+// ---------- cena ----------
+const host = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+host.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#e9efe4');
+
+const VIEW = 30;
+const FOCUS = new THREE.Vector3(14, 0, 0);
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 600);
+camera.position.copy(FOCUS).add(new THREE.Vector3(55, 50, 55));
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.maxPolarAngle = Math.PI / 2.3;
+controls.minZoom = 0.4; controls.maxZoom = 9;
+controls.target.copy(FOCUS);
+camera.zoom = 1.05;
+
+function resize() {
+  const w = innerWidth, h = innerHeight, a = w / h;
+  renderer.setSize(w, h);
+  camera.left = -VIEW * a; camera.right = VIEW * a; camera.top = VIEW; camera.bottom = -VIEW;
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+scene.add(new THREE.HemisphereLight('#ffffff', '#b9c4a8', 1.15));
+const sun = new THREE.DirectionalLight('#fff4e0', 1.7);
+sun.position.copy(FOCUS).add(new THREE.Vector3(30, 60, 25));
+sun.target.position.copy(FOCUS);
+sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096);
+sun.shadow.bias = -.0005;
+Object.assign(sun.shadow.camera, { left: -65, right: 65, top: 65, bottom: -65, far: 200 });
+scene.add(sun, sun.target);
+
+function label(text, { size = 28, bg = 'rgba(255,255,255,.92)', color = '#2b2a33', maxW = 420 } = {}) {
+  const c = document.createElement('canvas'), g = c.getContext('2d');
+  const font = `600 ${size}px -apple-system, system-ui, sans-serif`;
+  g.font = font;
+  const words = text.split(' '), lines = [];
+  let cur = '';
+  for (const w of words) {
+    const t = cur ? cur + ' ' + w : w;
+    if (g.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t;
+  }
+  lines.push(cur);
+  const shown = lines.slice(0, 3);
+  const w = Math.min(maxW, Math.max(...shown.map(l => g.measureText(l).width))) + 28;
+  const h = shown.length * size * 1.25 + 18;
+  c.width = w; c.height = h;
+  g.font = font; g.fillStyle = bg;
+  g.beginPath(); g.roundRect(0, 0, w, h, 14); g.fill();
+  g.fillStyle = color; g.textBaseline = 'top';
+  shown.forEach((l, i) => g.fillText(l, 14, 9 + i * size * 1.25));
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+  s.scale.set(w / 42, h / 42, 1); s.renderOrder = 10;
+  return s;
+}
+
+const world = buildWorld(scene, label);
+const { stations, desks, seats, DOOR } = world;
+
+const STATION_FOR = tool => {
+  if (/^(Read|Grep|Glob|LS|NotebookRead)$/.test(tool)) return 'library';
+  if (/^(Bash|BashOutput|KillShell|Monitor)$/.test(tool)) return 'terminal';
+  if (/^(WebFetch|WebSearch)$|claude-in-chrome|Microsoft_Learn/.test(tool)) return 'web';
+  if (/^(Agent|Task|SendMessage|Workflow|ListAgents)$/.test(tool)) return 'meeting';
+  if (/Atlassian/.test(tool)) return 'jira';
+  if (/Slack/.test(tool)) return 'slack';
+  if (/^mcp__/.test(tool)) return 'mail';
+  return 'desk'; // Edit, Write, TodoWrite, Skill...
+};
+const ICON = { library: '📚', terminal: '🖥️', web: '🌐', meeting: '🤝', mail: '📮', jira: '📋', slack: '💬', desk: '✍️' };
+// mcp__claude_ai_Atlassian__getJiraIssue → getJiraIssue
+const prettyTool = t => t.startsWith('mcp__') ? t.split('__').pop() : t;
+const EMOTE_AT = { library: 'Yes', terminal: 'Punch', web: 'ThumbsUp', meeting: 'Wave', mail: 'Yes', jira: 'Yes', slack: 'Wave' };
+
+// ---------- personagens ----------
+const PALETTE = ['#6a9bd8', '#7bb37b', '#b07cc6', '#e7a33e', '#4fb3b3', '#e46a8f', '#8d7bd6', '#9aa84a', '#5f8fd0', '#d97757'];
+const hash = s => [...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+const colorFor = a => a.kind === 'main' ? '#3d6fb6' : PALETTE[hash(a.type) % PALETTE.length];
+
+const people = new Map();
+const known = new Map(); // id -> info do agente (para recriar quem saiu e voltou)
+function makePerson(a) {
+  const color = colorFor(a);
+  const g = new THREE.Group();
+  const buddy = makeBuddy({ color, main: a.kind === 'main', seed: hash(a.id) });
+  g.add(buddy.root);
+  const name = label(a.kind === 'main' ? `👑 ${a.name}` : a.name, { size: 22 });
+  name.position.y = 4.2; g.add(name);
+
+  const desk = desks.find(d => !d.owner) || desks[people.size % desks.length];
+  desk.owner = a.id;
+  g.position.copy(DOOR); // nasce na porta
+  scene.add(g);
+  const p = { a, g, buddy, name, desk, home: desk.home, target: desk.home.clone(), path: [], face: null,
+    bubble: null, bubbleUntil: 0, lastEvent: performance.now(), color, emoteUntil: 0, pendingEmote: null,
+    moving: false, attention: false, leaving: false, typing: false, seat: null };
+  people.set(a.id, p);
+  goTo(p, p.home, desk.face, null);
+  return p;
+}
+
+function release(p) { if (p.seat) { p.seat.owner = null; p.seat = null; } }
+
+function emote(p, name) { p.emoteUntil = performance.now() + p.buddy.emote(name); }
+
+function say(p, text, ms = 5000, opts = {}) {
+  if (p.bubble) p.g.remove(p.bubble);
+  p.bubble = label(text, { size: 22, maxW: 360, ...opts });
+  p.bubble.position.y = 5.6;
+  p.g.add(p.bubble);
+  p.bubbleUntil = performance.now() + ms;
+}
+
+function goTo(p, pos, face, gesture) {
+  p.target.copy(pos);
+  p.path = world.route(p.g.position, pos);
+  p.face = face;
+  p.pendingEmote = gesture;
+  // já está lá: faz o gesto na hora
+  if (p.g.position.distanceTo(pos) < .3 && gesture) { emote(p, gesture); p.pendingEmote = null; }
+}
+
+function goRest(p) { // ocioso: vai sentar num banco do chafariz
+  const seat = seats.find(s => !s.owner);
+  if (!seat) return goTo(p, p.home, p.desk.face, null);
+  seat.owner = p.a.id; p.seat = seat;
+  goTo(p, seat.pos, seat.face, null);
+}
+
+function act(p, tool, target) {
+  const st = STATION_FOR(tool);
+  p.lastEvent = performance.now();
+  p.attention = false;
+  release(p);
+  if (st === 'desk') {
+    p.typing = true;
+    goTo(p, p.home, p.desk.face, null);
+    p.desk.screen.material.color.set('#9fe0ff');
+  } else {
+    p.typing = false;
+    const s = stations[st];
+    const pos = world.standAt(st, [...people.keys()].indexOf(p.a.id));
+    goTo(p, pos, Math.atan2(s.pos.x - pos.x, s.pos.z - pos.z), EMOTE_AT[st]);
+    s.heat = 1;
+  }
+  say(p, `${ICON[st]} ${prettyTool(tool)}${target ? ' · ' + target : ''}`, 4000);
+}
+
+// ---------- UI ----------
+const $ = id => document.getElementById(id);
+const fmt = n => n >= 1e9 ? (n / 1e9).toFixed(2) + 'B' : n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : String(n);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function renderRoster() {
+  $('roster').innerHTML = '';
+  let total = 0;
+  // árvore: raízes primeiro, cada subagent logo abaixo de quem o criou
+  const children = new Map();
+  for (const p of people.values()) {
+    const key = people.has(p.a.parent) ? p.a.parent : null;
+    if (!children.has(key)) children.set(key, []);
+    children.get(key).push(p);
+  }
+  const addRow = (p, depth) => {
+    total += p.a.tokens || 0;
+    const el = document.createElement('div');
+    el.className = 'agent';
+    el.style.paddingLeft = 4 + depth * 16 + 'px';
+    el.innerHTML = `${depth ? '<span class="branch">└</span>' : ''}<span class="dot" style="background:${p.color}"></span>
+      <span class="nm">${p.a.kind === 'main' ? '👑 ' : ''}${esc(p.a.name)} <small>${esc(p.a.task || '')}</small></span>
+      <span class="tk">${fmt(p.a.tokens || 0)}</span>`;
+    el.onclick = () => { select(p); controls.target.copy(p.g.position); camera.zoom = 2.2; camera.updateProjectionMatrix(); };
+    $('roster').appendChild(el);
+    for (const c of children.get(p.a.id) || []) addRow(c, depth + 1);
+  };
+  for (const p of children.get(null) || []) addRow(p, 0);
+  $('tokens').textContent = `${fmt(total)} tokens`;
+  $('empty').style.display = people.size ? 'none' : '';
+}
+let jiraState = { configured: false }, slackState = { configured: false };
+function agentInfo(id) {
+  const p = people.get(id), a = p?.a || known.get(id);
+  return { name: a ? a.name : 'agente', color: p ? p.color : '#8d8996' };
+}
+// redesenha de tempos em tempos ("há 3 min", destaque de quem mexeu)
+setInterval(() => { world.jiraBoard.render(jiraState, agentInfo); world.slackTV.render(slackState); }, 30e3);
+world.jiraBoard.render({ configured: true, site: 'carregando…', cards: [] }, agentInfo);
+world.slackTV.render({ configured: true, msgs: [], loading: true });
+function feedSys(html, color) {
+  const el = document.createElement('div');
+  el.className = 'ev'; el.style.borderLeftColor = color;
+  el.innerHTML = `<div class="meta">${new Date().toLocaleTimeString('pt-BR')}</div>${html}`;
+  $('feed').prepend(el);
+  while ($('feed').children.length > 60) $('feed').lastChild.remove();
+}
+function feed(p, html) {
+  const el = document.createElement('div');
+  el.className = 'ev'; el.style.borderLeftColor = p.color;
+  el.innerHTML = `<div class="meta">${esc(p.a.name)} · ${new Date().toLocaleTimeString('pt-BR')}</div>${html}`;
+  $('feed').prepend(el);
+  while ($('feed').children.length > 60) $('feed').lastChild.remove();
+}
+
+// ---------- eventos ----------
+const queue = [];
+let hooksOn = false;
+function onEvent(ev) {
+  if (ev.kind === 'meta') { hooksOn = !!ev.hooks; setStatus(true); return; }
+  if (ev.kind === 'slackbot') {
+    const labels = { on: '🤖 Slack bot ligado', reconnecting: '🤖 Slack bot reconectando…', error: '🤖 Slack bot com erro' };
+    $('botpill').hidden = ev.state === 'off';
+    $('botpill').textContent = labels[ev.state] || '';
+    $('botpill').title = ev.error || 'Mande DM para o bot no Slack (só você é aceito)';
+    return;
+  }
+  if (ev.kind === 'jira') { jiraState = ev; world.jiraBoard.render(ev, agentInfo); return; }
+  if (ev.kind === 'slack') {
+    slackState = ev; world.slackTV.render(ev);
+    for (const m of (ev.msgs || []).filter(m => (ev.fresh || []).includes(m.id))) {
+      stations.slack.heat = 1;
+      feedSys(`💬 <b>${esc(m.user)}</b> em ${esc(m.channel)}: ${esc(m.text)}`, '#4a154b');
+    }
+    return;
+  }
+  if (ev.kind === 'term') { if (selected && selected.a.id === ev.id && ev.ts >= termSince) termAppend(ev.entries); return; }
+  if (ev.kind === 'agent') {
+    known.set(ev.agent.id, ev.agent);
+    const p = people.get(ev.agent.id);
+    if (p) Object.assign(p.a, ev.agent); else makePerson(ev.agent);
+    renderRoster(); return;
+  }
+  // eventos de replay entram numa fila para não chegarem todos de uma vez
+  if (ev.replay) queue.push(ev); else handle(ev);
+}
+function handle(ev) {
+  let p = people.get(ev.id);
+  if (!p || p.leaving) {
+    if (ev.kind === 'leave' || ev.kind === 'tokens' || !known.has(ev.id)) return;
+    if (p) p.leaving = false; else p = makePerson(known.get(ev.id)); // voltou ao trabalho
+  }
+  const now = performance.now();
+  demoTerm(ev);
+  switch (ev.kind) {
+    case 'tool':
+      act(p, ev.tool, ev.issue || ev.target);
+      feed(p, `${ICON[STATION_FOR(ev.tool)]} <b>${esc(prettyTool(ev.tool))}</b> ${esc(ev.issue || ev.target || '')}`); break;
+    case 'toolDone':
+      if (!ev.ok) { emote(p, 'No'); say(p, `❌ ${ev.tool} falhou`, 3000); feed(p, `❌ <b>${esc(ev.tool)}</b> falhou`); }
+      break;
+    case 'say':
+      say(p, '💬 ' + ev.text, 6000); feed(p, '💬 ' + esc(ev.text)); p.lastEvent = now; break;
+    case 'prompt':
+      p.attention = false;
+      say(p, (ev.human ? '🧑 ' : '📋 ') + ev.text, 5000);
+      feed(p, (ev.human ? '🧑 <b>Você:</b> ' : '📋 ') + esc(ev.text)); p.lastEvent = now; break;
+    case 'tokens':
+      p.a.tokens = ev.total; renderRoster(); break;
+    case 'sendStart':
+      p.attention = false; p.lastEvent = now; emote(p, 'Yes');
+      say(p, '📨 ' + ev.text, 5000);
+      feed(p, `📨 <b>Você (pelo ${ev.via === 'slack' ? 'Slack' : 'site'}):</b> ` + esc(ev.text));
+      if (selected === p) setCStatus('Enviado. Aguardando a resposta…'); break;
+    case 'sendDone':
+      feed(p, ev.ok ? '✅ <b>Respondeu:</b> ' + esc(ev.text) : '❌ <b>Envio falhou:</b> ' + esc(ev.text));
+      if (!ev.ok) { emote(p, 'No'); say(p, '❌ não consegui responder', 4000); }
+      if (selected === p) { setCStatus(ev.ok ? 'Respondeu.' : 'Falhou: ' + ev.text, !ev.ok); if (!ev.ok) termSys('Falhou: ' + ev.text, true); }
+      break;
+    case 'arrive':
+      say(p, '👋 Cheguei!', 3000); feed(p, '👋 sessão iniciada'); p.lastEvent = now; break;
+    case 'attention':
+      p.attention = true; p.lastEvent = now;
+      emote(p, 'Jump');
+      say(p, '❗ ' + ev.text, 600e3, { bg: 'rgba(217,83,79,.95)', color: '#fff' });
+      feed(p, '❗ <b>' + esc(ev.text) + '</b>'); break;
+    case 'stop':
+      p.attention = false; p.typing = false; release(p);
+      goTo(p, p.home, p.desk.face, ev.failed ? 'No' : 'Dance');
+      say(p, ev.failed ? '💥 Parei com erro' : '✅ Pronto!', 4000);
+      feed(p, ev.failed ? '💥 turno falhou' : '✅ terminou o turno'); break;
+    case 'leave': {
+      p.leaving = true; p.attention = false; release(p);
+      emote(p, 'Wave'); say(p, '👋 Tchau!', 3000);
+      const parent = people.get(p.a.parent);
+      if (parent) { // entrega o resultado a quem pediu
+        say(parent, `📦 resultado de ${p.a.name}`, 3000); emote(parent, 'Yes');
+        feed(parent, `📦 recebeu o resultado de <b>${esc(p.a.name)}</b>`);
+      }
+      setTimeout(() => { if (p.leaving) goTo(p, DOOR, 0, null); }, 1600);
+      feed(p, '👋 saiu do escritório'); break;
+    }
+  }
+}
+setInterval(() => { for (let i = 0; i < 3 && queue.length; i++) handle(queue.shift()); }, 250);
+
+function setStatus(live, text) {
+  $('status').textContent = text || (live ? (hooksOn ? 'ao vivo ⚡ hooks' : 'ao vivo') : 'reconectando…');
+  $('status').classList.toggle('live', live);
+}
+
+// ---------- falar com um agente ----------
+const TOKEN = document.querySelector('meta[name="aw-token"]').content;
+const DEMO = new URLSearchParams(location.search).has('demo');
+let selected = null;
+const ring = new THREE.Mesh(new THREE.RingGeometry(1.05, 1.35, 40), new THREE.MeshBasicMaterial({ color: '#fff', transparent: true, opacity: .9, depthWrite: false }));
+ring.rotation.x = -Math.PI / 2; ring.visible = false; scene.add(ring);
+
+function rootOf(p) {
+  for (let i = 0; p && p.a.kind !== 'main' && i < 10; i++) p = people.get(p.a.parent);
+  return p && p.a.kind === 'main' ? p : null;
+}
+function setCStatus(text, err = false) { $('cStatus').textContent = text; $('cStatus').classList.toggle('err', err); }
+
+// ---------- terminal ----------
+let termSince = 0; // ignora eventos ao vivo que o histórico já trouxe
+const RESULT_LINES = 6;
+function termAppend(entries) {
+  const log = $('termLog');
+  const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+  for (const e of entries) {
+    const el = document.createElement('div');
+    el.className = `tl ${e.t}${e.err ? ' err' : ''}`;
+    if (e.t === 'tool') {
+      const m = e.text.match(/^([^(]+)(\(.*)$/s);
+      el.innerHTML = m ? `<b>${esc(m[1])}</b>${esc(m[2])}` : esc(e.text);
+    } else if (e.t === 'result') {
+      const lines = (e.text || '(sem saída)').split('\n');
+      el.textContent = lines.slice(0, RESULT_LINES).join('\n');
+      if (lines.length > RESULT_LINES) { // saída longa começa recolhida
+        const more = document.createElement('span');
+        more.className = 'more'; more.textContent = `\n… +${lines.length - RESULT_LINES} linhas (clique para ver)`;
+        more.onclick = () => { el.textContent = e.text; };
+        el.appendChild(more);
+      }
+    } else el.textContent = e.text;
+    log.appendChild(el);
+  }
+  while (log.children.length > 600) log.firstChild.remove();
+  if (atBottom) log.scrollTop = log.scrollHeight;
+}
+const termSys = (text, err = false) => termAppend([{ t: 'sys', text, err }]);
+
+async function loadHistory(p) {
+  $('termLog').innerHTML = '';
+  termSince = Date.now();
+  if (DEMO) { termSys('Modo demo: o terminal mostra só o que acontecer a partir de agora.'); return; }
+  termSys('carregando o histórico da sessão…');
+  try {
+    const r = await fetch('/history?id=' + encodeURIComponent(p.a.id));
+    if (selected !== p) return;
+    $('termLog').innerHTML = '';
+    if (!r.ok) { termSys('Sem transcript para este agente ainda.'); termSince = 0; return; }
+    const h = await r.json();
+    if (h.truncated) termSys('… (início da conversa omitido)');
+    termAppend(h.entries);
+    termSince = h.lastTs || 0;
+    $('termLog').scrollTop = $('termLog').scrollHeight;
+  } catch { termSys('Não consegui carregar o histórico.', true); }
+}
+
+function select(p) {
+  const same = selected === p;
+  selected = p;
+  ring.material.color.set(p.color); ring.visible = true;
+  $('composer').hidden = false;
+  $('cDot').style.background = p.color;
+  $('cTo').innerHTML = (p.a.kind === 'main' ? '👑 ' : '') + esc(p.a.name) +
+    (p.a.task ? ` <small>· ${esc(p.a.task)}</small>` : '') + ` <small>· ${esc(String(p.a.id).slice(0, 8))}</small>`;
+  if (!same) loadHistory(p);
+  $('cForce').hidden = true;
+  const isSub = p.a.kind !== 'main';
+  $('cText').disabled = $('cSend').disabled = isSub;
+  $('cSub').hidden = !isSub;
+  if (isSub) {
+    const root = rootOf(p);
+    $('cSub').innerHTML = 'Terminal só de leitura: subagents recebem tarefas de quem os criou. ' +
+      (root ? `<a href="#" id="cRoot">Falar com 👑 ${esc(root.a.name)}</a>` : 'O agente principal não está no escritório.');
+    $('cRoot')?.addEventListener('click', e => { e.preventDefault(); select(root); });
+    setCStatus('');
+  } else {
+    setCStatus(DEMO ? 'Modo demo: a mensagem é simulada.' : 'Enter roda claude -p --resume nesta sessão.');
+    $('cText').focus();
+  }
+}
+
+// no modo demo não há transcript: o terminal espelha os eventos simulados
+function demoTerm(ev) {
+  if (!DEMO || !selected || selected.a.id !== ev.id) return;
+  if (ev.kind === 'tool') termAppend([{ t: 'tool', text: `${ev.tool}(${ev.target || ''})` }, { t: 'result', text: 'ok' }]);
+  else if (ev.kind === 'say') termAppend([{ t: 'text', text: ev.text }]);
+  else if (ev.kind === 'prompt') termAppend([{ t: 'user', text: ev.text }]);
+}
+function deselect() { selected = null; ring.visible = false; $('composer').hidden = true; }
+
+async function send(force = false) {
+  const p = selected, text = $('cText').value.trim();
+  if (!p || !text) return;
+  $('cSend').disabled = true; $('cForce').hidden = true;
+  if (DEMO) {
+    handle({ id: p.a.id, kind: 'sendStart', text });
+    termAppend([{ t: 'user', text }]);
+    setTimeout(() => {
+      handle({ id: p.a.id, kind: 'say', text: 'Feito! (resposta simulada no modo demo)' });
+      handle({ id: p.a.id, kind: 'sendDone', ok: true, text: 'Feito! (resposta simulada no modo demo)' });
+    }, 3000);
+    $('cText').value = ''; $('cSend').disabled = false; return;
+  }
+  try {
+    const r = await fetch('/send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-AW-Token': TOKEN },
+      body: JSON.stringify({ agentId: p.a.id, text, force }) });
+    const body = await r.json().catch(() => ({}));
+    if (r.ok) { $('cText').value = ''; setCStatus('Enviado. Aguardando a resposta…'); }
+    else { setCStatus(body.error || `Erro ${r.status}`, true); if (body.live) $('cForce').hidden = false; }
+  } catch (e) { setCStatus('Sem conexão com o observador.', true); }
+  $('cSend').disabled = false;
+}
+$('cSend').onclick = () => send(false);
+$('cForce').onclick = () => send(true);
+$('cClose').onclick = deselect;
+$('cText').addEventListener('input', e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; });
+$('cText').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(false); } });
+addEventListener('keydown', e => { if (e.key === 'Escape') deselect(); });
+
+// câmera: de frente para um quadro, ou de volta à visão geral
+let focused = null, camAnim = null;
+const HOME = { pos: camera.position.clone(), target: controls.target.clone(), zoom: camera.zoom };
+function flyTo(pos, target, zoom) { camAnim = { from: { pos: camera.position.clone(), target: controls.target.clone(), zoom: camera.zoom }, to: { pos, target, zoom }, t: 0 }; }
+function focusOn(mesh) {
+  focused = mesh;
+  const c = mesh.getWorldPosition(new THREE.Vector3());
+  const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(mesh.getWorldQuaternion(new THREE.Quaternion()));
+  const w = mesh.geometry.parameters.width;
+  flyTo(c.clone().addScaledVector(normal, 60).add(new THREE.Vector3(0, 25, 0)), c, Math.min(9, (VIEW * 2 * innerWidth / innerHeight) / (w * 1.5)));
+}
+function goHome() { focused = null; flyTo(HOME.pos.clone(), HOME.target.clone(), HOME.zoom); }
+$('home').onclick = goHome;
+controls.addEventListener('start', () => { focused = null; camAnim = null; }); // mexeu na câmera: sai do foco
+
+// clique (sem arrastar) num bonequinho seleciona
+const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
+let downAt = null;
+renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
+  ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const hit = raycaster.intersectObjects([...people.values()].map(p => p.g), true)[0];
+  if (!hit) {
+    const board = raycaster.intersectObjects([world.jiraBoard.mesh, world.slackTV.mesh])[0];
+    if (!board) return;
+    // 1º clique: câmera de frente para o quadro; com ela de frente, clicar num card abre o link
+    if (focused !== board.object) return focusOn(board.object);
+    const url = (board.object === world.jiraBoard.mesh ? world.jiraBoard : world.slackTV).hit(board.uv);
+    if (url && /^https:\/\//.test(url)) window.open(url, '_blank', 'noopener,noreferrer');
+    return;
+  }
+  for (const p of people.values()) {
+    let o = hit.object;
+    while (o && o !== p.g) o = o.parent;
+    if (o) return select(p);
+  }
+});
+
+window.__agentWorld = { scene, people, world, camera, controls, focusOn }; // para depurar no console
+
+if (DEMO) startDemo();
+else {
+  const es = new EventSource('/events');
+  es.onopen = () => setStatus(true);
+  es.onerror = () => setStatus(false);
+  es.onmessage = m => onEvent(JSON.parse(m.data));
+}
+
+function startDemo() {
+  setStatus(true, 'demo');
+  const types = ['arquiteto-sr', 'go-senior-engineer', 'cypress-qa-analyst', 'aws-devops-engineer', 'security-specialist',
+    'python-engineer', 'postgres-dba', 'senior-react-developer'];
+  const parentOf = { 'security-specialist': 'arquiteto-sr', 'cypress-qa-analyst': 'go-senior-engineer' }; // aninhados
+  const tools = [['Read', 'handler.go'], ['Grep', 'func New'], ['Edit', 'orders.go'], ['Bash', 'go test ./...'],
+    ['WebSearch', 'EKS pod OOMKilled'], ['mcp__claude_ai_Atlassian__getJiraIssue', 'ABC-123'], ['Write', 'main.tf'], ['Glob', '**/*.ts']];
+  onEvent({ kind: 'agent', agent: { id: 'main', kind: 'main', type: 'main', name: 'repo', tokens: 0 } });
+  // integrações de mentira, para ver o quadro e a TV funcionando
+  const card = (key, type, summary, cat, status) => ({ key, type, summary, cat, status, url: 'https://example.atlassian.net/browse/' + key });
+  const demoCards = [card('DEMO-51', 'Bug', 'Formulário de cadastro envia dados antes da validação', 'indeterminate', 'Em andamento'),
+    card('DEMO-55', 'Story', 'Login com Google na área do cliente', 'new', 'A fazer'),
+    card('DEMO-48', 'Task', 'Migrar pipeline do front para o novo runner', 'new', 'A fazer'),
+    card('DEMO-42', 'Bug', 'Timeout de 1s no client de pagamentos', 'indeterminate', 'Em revisão'),
+    card('DEMO-39', 'Epic', 'Observabilidade dos serviços de checkout', 'new', 'Backlog'),
+    card('DEMO-33', 'Task', 'Atualizar dependências do backend', 'done', 'Concluído')];
+  const jiraDemo = touched => onEvent({ kind: 'jira', configured: true, site: 'demo.atlassian.net', cards: demoCards, updatedAt: Date.now(), touched });
+  const touchedDemo = {};
+  jiraDemo(touchedDemo);
+  const slackMsgs = [
+    { id: 's1', user: 'Ana Souza', channel: 'mensagem direta', text: 'Wash, consegue olhar o PR #92 hoje?', ts: Date.now() - 600e3, url: null },
+    { id: 's2', user: 'Bruno Lima', channel: '#deploys', text: '@Wash o deploy de produção terminou ✅', ts: Date.now() - 1800e3, url: null }];
+  onEvent({ kind: 'slack', configured: true, msgs: slackMsgs, fresh: [], updatedAt: Date.now() });
+  setInterval(() => {
+    const m = { id: 's' + Date.now(), user: ['Carla Dias', 'Diego Reis', 'Ana Souza'][Math.floor(Math.random() * 3)], channel: Math.random() < .5 ? 'mensagem direta' : '#time-plataforma',
+      text: ['Bom dia! Alguma novidade do DEMO-51?', 'Subi a branch nova, pode revisar?', 'Reunião às 15h confirmada'][Math.floor(Math.random() * 3)], ts: Date.now(), url: null };
+    slackMsgs.unshift(m); slackMsgs.length = Math.min(slackMsgs.length, 6);
+    onEvent({ kind: 'slack', configured: true, msgs: slackMsgs, fresh: [m.id], updatedAt: Date.now() });
+  }, 25e3);
+  setInterval(() => { // um agente mexe numa issue de vez em quando
+    const ids = [...people.keys()], id = ids[Math.floor(Math.random() * ids.length)];
+    const c = demoCards[Math.floor(Math.random() * demoCards.length)];
+    if (Math.random() < .3 && c.cat !== 'done') { c.cat = c.cat === 'new' ? 'indeterminate' : 'done'; c.status = c.cat === 'done' ? 'Concluído' : 'Em andamento'; }
+    touchedDemo[c.key] = { agentId: id, ts: Date.now() };
+    handle({ id, kind: 'tool', tool: 'mcp__claude_ai_Atlassian__editJiraIssue', issue: c.key });
+    jiraDemo(touchedDemo);
+  }, 9e3);
+  let n = 0;
+  setInterval(() => {
+    if (n < types.length && Math.random() < .25) {
+      const t = types[n++];
+      const parent = people.has(parentOf[t]) ? parentOf[t] : 'main';
+      handle({ id: parent, kind: 'tool', tool: 'Agent', target: t });
+      setTimeout(() => onEvent({ kind: 'agent', agent: { id: t, kind: 'sub', type: t, name: t, task: 'tarefa demo', parent, tokens: 0 } }), 1500);
+    }
+    const ids = [...people.keys()];
+    const id = ids[Math.floor(Math.random() * ids.length)];
+    const p = people.get(id);
+    if (!p || p.leaving) return;
+    if (now() - p.lastEvent < 2500) return; // deixa cada um trabalhar um pouco
+    const r = Math.random();
+    if (r < .04) handle({ id, kind: 'attention', text: 'Permissão: Bash terraform apply' });
+    else if (r < .12) p.lastEvent -= 60e3; // fica ocioso: vai para o chafariz
+    else if (r < .16) handle({ id, kind: 'stop' });
+    else if (r < .18 && id !== 'main') handle({ id, kind: 'leave' });
+    else if (r < .21) handle({ id, kind: 'toolDone', tool: 'Bash', ok: false });
+    else if (r < .32) handle({ id, kind: 'say', text: 'Achei o problema: o timeout do client está em 1s, vou ajustar.' });
+    else { const [tool, target] = tools[Math.floor(Math.random() * tools.length)]; handle({ id, kind: 'tool', tool, target }); }
+    handle({ id, kind: 'tokens', total: (p.a.tokens || 0) + Math.round(5000 + Math.random() * 20000) });
+  }, 700);
+}
+const now = () => performance.now();
+
+// ---------- loop ----------
+const clock = new THREE.Clock();
+const IDLE_MS = 45e3, GONE_MS = 30 * 60e3;
+// gira pelo caminho mais curto
+function turn(p, ang, k) {
+  const d = Math.atan2(Math.sin(ang - p.g.rotation.y), Math.cos(ang - p.g.rotation.y));
+  p.g.rotation.y += d * k;
+}
+const _to = new THREE.Vector3();
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(clock.getDelta(), 1), t = clock.elapsedTime, now = performance.now();
+  for (const [id, p] of people) {
+    const idle = now - p.lastEvent;
+    if (idle > IDLE_MS && !p.leaving && !p.attention && !p.seat) goRest(p);
+    if (idle > GONE_MS && !p.leaving) { p.leaving = true; release(p); goTo(p, DOOR, 0, null); }
+
+    // segue o caminho (pontos de passagem: porta de vidro, ponte)
+    let wp = p.path[0];
+    while (wp && Math.hypot(wp.x - p.g.position.x, wp.z - p.g.position.z) < .15) { p.path.shift(); wp = p.path[0]; }
+    if (wp) {
+      _to.set(wp.x - p.g.position.x, 0, wp.z - p.g.position.z);
+      const dist = _to.length();
+      let remaining = dist;
+      for (let i = 1; i < p.path.length; i++) remaining += p.path[i].distanceTo(p.path[i - 1]);
+      const run = remaining > 12;
+      p.g.position.addScaledVector(_to.normalize(), Math.min(dist, (run ? 11 : 6) * dt));
+      turn(p, Math.atan2(_to.x, _to.z), .2);
+      p.moving = true; p.emoteUntil = 0;
+      p.buddy.play(run ? 'Running' : 'Walking');
+    } else {
+      if (p.moving) { // acabou de chegar
+        p.moving = false;
+        if (p.leaving && p.target.distanceTo(DOOR) < .3) {
+          scene.remove(p.g); p.desk.owner = null; people.delete(id); renderRoster(); continue;
+        }
+        if (p.pendingEmote) { emote(p, p.pendingEmote); p.pendingEmote = null; }
+      }
+      if (p.face != null) turn(p, p.face, .12);
+      const atDesk = p.g.position.distanceTo(p.home) < .3;
+      const atSeat = p.seat && p.g.position.distanceTo(p.seat.pos) < .3;
+      if (now > p.emoteUntil) {
+        if (p.attention) emote(p, 'Wave');
+        else if ((atDesk && (p.typing || idle > 6000)) || atSeat) p.buddy.play('Sitting');
+        else p.buddy.play('Idle');
+      }
+    }
+    p.g.position.y = world.groundY(p.g.position.x, p.g.position.z);
+    p.buddy.update(dt, t, p.typing && !p.moving);
+    if (idle > 8000) { p.typing = false; p.desk.screen.material.color.lerp(new THREE.Color('#3a3d4a'), .02); }
+    if (p.bubble && now > p.bubbleUntil) { p.g.remove(p.bubble); p.bubble = null; }
+    p.name.material.opacity = idle > IDLE_MS ? .55 : 1;
+  }
+  for (const s of Object.values(stations)) { s.heat *= .97; s.light.intensity = s.heat * 40; }
+  if (selected) {
+    if (!people.has(selected.a.id)) deselect();
+    else { ring.position.set(selected.g.position.x, selected.g.position.y + .05, selected.g.position.z); ring.scale.setScalar(1 + Math.sin(t * 4) * .06); }
+  }
+  world.update(t, dt);
+  if (camAnim) {
+    camAnim.t = Math.min(1, camAnim.t + dt / .8);
+    const k = camAnim.t * camAnim.t * (3 - 2 * camAnim.t);
+    camera.position.lerpVectors(camAnim.from.pos, camAnim.to.pos, k);
+    controls.target.lerpVectors(camAnim.from.target, camAnim.to.target, k);
+    camera.zoom = camAnim.from.zoom + (camAnim.to.zoom - camAnim.from.zoom) * k;
+    camera.updateProjectionMatrix();
+    if (camAnim.t >= 1) camAnim = null;
+  }
+  controls.update();
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>

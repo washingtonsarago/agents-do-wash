@@ -1,0 +1,6 @@
+.DS_Store
+node_modules/
+*.log
+# credenciais nunca entram no repositório
+*.json.bak*
+.env

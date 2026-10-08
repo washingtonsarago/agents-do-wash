@@ -1,0 +1,30 @@
+# Manifesto do app do Slack para o Agents do Wash.
+# api.slack.com/apps → Create New App → From a manifest → cole este arquivo.
+display_information:
+  name: Agents do Wash
+  description: Fale com os agentes do Claude Code que rodam no seu Mac
+  background_color: "#2b2a33"
+features:
+  app_home:
+    home_tab_enabled: false
+    messages_tab_enabled: true
+    messages_tab_read_only_enabled: false
+  bot_user:
+    display_name: Agents do Wash
+    always_online: true
+oauth_config:
+  scopes:
+    bot:
+      - chat:write    # responder na thread
+      - im:history    # receber as DMs que você manda para o bot
+    user:
+      - search:read   # TV do Slack no escritório (mensagens para você)
+settings:
+  event_subscriptions:
+    bot_events:
+      - message.im
+  interactivity:
+    is_enabled: false
+  org_deploy_enabled: false
+  socket_mode_enabled: true      # conexão sai do seu Mac; não precisa de URL pública
+  token_rotation_enabled: false  # tokens não expiram a cada 12 h
