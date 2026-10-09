@@ -6,8 +6,11 @@ Ele usa o modo demo, com dados de exemplo, então nada das suas sessões reais a
 ## Como gravar
 
 1. Com o observador rodando, abra **http://localhost:4321/?demo&tour** (ou clique em 🎬 no topo do site).
-2. Deixe o navegador em tela cheia (`Ctrl + Cmd + F`) e silencie as notificações (Foco → Não perturbe).
-3. Comece a gravar: `Cmd + Shift + 5` → *Gravar a tela inteira* (ou *Gravar parte selecionada*).
+2. Aperte **`P`**: abre a **tela do apresentador**, uma janela pequena no canto direito com a **sugestão de fala**, o cronômetro
+   da cena, a próxima cena e os botões ⏮ ⏯ ⏭. Enquanto ela está aberta, a legenda **some da tela gravada**.
+   - Com dois monitores: arraste a janelinha para o outro monitor (ou estique para ver também a lista de cenas).
+   - Com um monitor só: deixe a janelinha no canto e grave **só a janela do escritório** (`Cmd + Shift + 5` → *Gravar parte selecionada*).
+3. Silencie as notificações (Foco → Não perturbe) e comece a gravar (`Cmd + Shift + 5`).
 4. O tour começa sozinho e cada cena avança no tempo dela. **Duração total: ~4 min 20 s.**
 
 | Tecla | O que faz |
@@ -15,6 +18,7 @@ Ele usa o modo demo, com dados de exemplo, então nada das suas sessões reais a
 | `→` / `←` | próxima / cena anterior |
 | `espaço` | pausa e retoma (para você falar com calma) |
 | `H` | esconde ou mostra a legenda (se preferir só a sua voz) |
+| `P` | abre a tela do apresentador (fala sugerida, cronômetro e controles) |
 | `Esc` | sai do tour |
 
 > Dica: faça uma passada de ensaio antes. Se uma cena terminar antes da sua fala, aperte `espaço`; se quiser pular, `→`.

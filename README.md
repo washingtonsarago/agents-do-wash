@@ -50,7 +50,8 @@ Um tour automático, com câmera, legendas e cenas encenadas (no modo demo), par
 **http://localhost:4321/?demo&tour** ou clique em 🎬 no topo. São 18 cenas, ~4 min 20 s: os agentes, as ferramentas,
 os subagentes, os heróis, o chefe, o head de segurança, o CTO, o Limpinho, a copa, o jardim, Jira e Slack, o terminal com fila,
 renomear um agente, pedido de permissão, a câmera que segue e o bot do Slack.
-Teclas: `→`/`←` cenas, `espaço` pausa, `H` esconde a legenda, `Esc` sai. O roteiro de narração está em
+Teclas: `→`/`←` cenas, `espaço` pausa, `H` esconde a legenda, `Esc` sai. **`P` abre a tela do apresentador**: uma janela pequena
+no canto (ou no outro monitor) com a fala sugerida, o cronômetro e os controles; a legenda some da tela gravada. O roteiro de narração está em
 [docs/roteiro-apresentacao.md](docs/roteiro-apresentacao.md).
 
 ## Arquitetura

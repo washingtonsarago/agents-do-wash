@@ -147,7 +147,7 @@
     <div class="tbar"><i id="tourBar"></i></div>
   </div>
   <div id="tourPause" hidden>⏸ pausado</div>
-  <div id="tourHint">→ próximo · ← anterior · espaço pausa · H esconde a legenda · Esc sai</div>
+  <div id="tourHint">→ próximo · ← anterior · espaço pausa · H esconde a legenda · <b>P abre a tela do apresentador</b> · Esc sai</div>
 </div>
 <div id="slackDemo" hidden></div>
 <div id="empty" class="pill">Nenhum agente ativo — rode o Claude Code ou abra <a href="?demo">?demo</a></div>
@@ -1430,6 +1430,59 @@ const TOUR_STEPS = [
     } },
 ];
 
+// sugestão de fala de cada cena (aparece na tela do apresentador)
+const TOUR_SAY = [
+  'Eu cansei de ficar olhando terminal o dia inteiro. Então eu criei o Agents do Wash: um escritório 3D onde os meus agentes do Claude Code aparecem trabalhando, ao vivo.',
+  'Cada agente que chega escolhe o próprio nome e o estilo de roupa, e guarda isso. Do lado, eu vejo quem está trabalhando agora, em árvore.',
+  'O que eles fazem vira movimento: quem roda comando vai para o terminal, quem lê código vai para a biblioteca, quem pesquisa vai para o globo, quem mexe no Jira vai para o quadro. Escrever código é na própria mesa.',
+  'Quando o agente principal delega uma tarefa, ele chama um subagente para a sala de reunião, e a lista mostra quem é filho de quem.',
+  'Dá para trocar o visual de todo mundo: heróis de capa, heróis de armadura, cada um com as cores de um herói conhecido… ou deixar cada um no seu estilo.',
+  'O escritório também tem personagens. O chefe patrulha e dá bronca, principalmente em quem está descansando no chafariz ou tomando café.',
+  'O head de segurança dá dicas de acordo com o que cada um está fazendo. E às vezes ele exagera no jargão… ninguém entende nada, e ele tem que traduzir.',
+  'E tem o CTO: grisalho, bombado e de regata. Ele dá bronca em todo mundo, inclusive no chefe e no head de segurança.',
+  'O Limpinho, o robô de limpeza, passa pano no escritório inteiro e ainda pede licença.',
+  'Quando um agente fica à toa, ele não fica parado: vai tomar café, ler na biblioteca, bater papo na sala de reunião ou descansar no chafariz.',
+  'Lá fora tem jardim, riacho e chafariz. Todo mundo desvia dos obstáculos e só atravessa o riacho pela ponte.',
+  'Na parede, um quadro com as minhas issues do Jira e uma TV com as mensagens do Slack, que se atualizam sozinhos. Quando um agente mexe numa issue, o card mostra quem foi.',
+  'Clicando num agente, eu abro o terminal da sessão dele: o que pedi, cada ferramenta que ele usou e o que respondeu. Daqui eu mando mensagem, e se ele estiver ocupado, ela entra na fila.',
+  'Para organizar, eu dou o nome que eu quiser para um agente. O nome muda em cima dele, na lista, no terminal e no Slack, e fica salvo.',
+  'Quando um agente precisa de aprovação, ele pula e acena com um balão vermelho. Dá para ver de longe quem está esperando por mim.',
+  'Eu posso aproximar onde quiser, voar até um lugar pelo menu, ou deixar a câmera seguindo um agente: aqui ela vai atrás dele até o jardim.',
+  'E eu falo com eles de qualquer lugar, pelo Slack: peço a lista com o que cada um está fazendo e mando tarefas por mensagem direta.',
+  'É tudo código aberto: está no meu GitHub, washingtonsarago/agents-do-wash. Quem quiser, é só clonar e rodar.',
+];
+
+// tela do apresentador (outra janela): recebe a cena atual e manda comandos de volta
+const tourChan = 'BroadcastChannel' in window ? new BroadcastChannel('aw-tour') : null;
+let presenterOn = false;
+function tourSync() {
+  if (!tourChan) return;
+  const st = TOUR_STEPS[tour.i] || {};
+  const elapsed = tourPaused ? st.ms - tourLeft : st.ms - tourLeft + (performance.now() - tourStepStart);
+  tourChan.postMessage({ type: 'state', on: tour.on, i: tour.i, total: TOUR_STEPS.length, kicker: st.kicker, title: st.title, text: st.text,
+    say: TOUR_SAY[tour.i] || '', next: TOUR_STEPS[tour.i + 1]?.title || 'Fim', ms: st.ms || 0, left: Math.max(0, (st.ms || 0) - elapsed), paused: tourPaused,
+    titles: TOUR_STEPS.map(x => x.title) });
+}
+if (tourChan) tourChan.onmessage = ({ data }) => {
+  if (data.type === 'hello') { // apresentador conectou: a legenda sai da tela gravada
+    presenterOn = true; $('tourCap').classList.add('hidden'); $('tourHint').hidden = true; tourSync();
+  } else if (data.type === 'bye') { presenterOn = false; $('tourCap').classList.remove('hidden'); $('tourHint').hidden = false; }
+  else if (data.type === 'cmd') {
+    if (data.cmd === 'start' && !tour.on) startTour();
+    else if (!tour.on) return;
+    else if (data.cmd === 'next') tourShow(tour.i + 1);
+    else if (data.cmd === 'prev') tourShow(tour.i - 1);
+    else if (data.cmd === 'go') tourShow(data.i);
+    else if (data.cmd === 'pause') tourPause();
+    else if (data.cmd === 'stop') stopTour();
+  }
+};
+// abre pequena, no canto direito da tela (dá para esticar ou levar para outro monitor)
+const openPresenter = () => {
+  const w = 420, h = 600, left = (screen.availLeft || 0) + screen.availWidth - w - 16, top = (screen.availTop || 0) + 40;
+  window.open('presenter.html', 'aw-presenter', `width=${w},height=${h},left=${left},top=${top}`);
+};
+
 let tourTimer = null, tourToken = 0, tourLeft = 0, tourStepStart = 0, tourPaused = false;
 function tourWait(token) { return ms => new Promise((res, rej) => setTimeout(() => token === tourToken ? res() : rej('cancelado'), ms)); }
 function tourShow(i) {
@@ -1450,6 +1503,7 @@ function tourShow(i) {
   $('tourBar').style.transition = 'none'; $('tourBar').style.width = '0%';
   requestAnimationFrame(() => { $('tourBar').style.transition = `width ${st.ms}ms linear`; $('tourBar').style.width = '100%'; });
   tourTimer = setTimeout(tourNext, st.ms);
+  tourSync();
 }
 function tourNext() { if (tour.i >= TOUR_STEPS.length - 1) return stopTour(); tourShow(tour.i + 1); }
 function tourPause() {
@@ -1463,6 +1517,7 @@ function tourPause() {
     $('tourBar').style.transition = `width ${tourLeft}ms linear`; $('tourBar').style.width = '100%';
     tourTimer = setTimeout(tourNext, tourLeft);
   }
+  tourSync();
 }
 function startTour() {
   if (!DEMO) { location.href = '?demo&tour'; return; } // a apresentação usa o modo demo (dados de exemplo)
@@ -1471,6 +1526,7 @@ function startTour() {
   if (skin !== 'proprio') { $('skin').value = 'proprio'; setSkin('proprio'); }
   document.body.classList.add('touring');
   $('tour').hidden = false;
+  if (presenterOn) { $('tourCap').classList.add('hidden'); $('tourHint').hidden = true; }
   tourShow(0);
 }
 function stopTour() {
@@ -1481,6 +1537,7 @@ function stopTour() {
   NPCS.forEach(n => { n.scripted = false; n.until = 0; });
   agentsList().forEach(p => { p.lastEvent = performance.now(); });
   if (tour.skinBefore && skin !== tour.skinBefore) { $('skin').value = tour.skinBefore; setSkin(tour.skinBefore); }
+  tourSync();
 }
 addEventListener('keydown', e => {
   if (!tour.on || /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName)) return;
@@ -1488,6 +1545,7 @@ addEventListener('keydown', e => {
   else if (e.key === 'ArrowLeft') { e.preventDefault(); tourShow(tour.i - 1); }
   else if (e.key === ' ') { e.preventDefault(); tourPause(); }
   else if (e.key === 'h' || e.key === 'H') $('tourCap').classList.toggle('hidden');
+  else if (e.key === 'p' || e.key === 'P') openPresenter();
   else if (e.key === 'Escape') { e.stopImmediatePropagation(); stopTour(); }
 }, true);
 $('tourBtn').onclick = startTour;

@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apresentador · Agents do Wash</title>
+<style>
+  :root { --bg:#16151b; --card:#201f27; --fg:#ece8e1; --dim:#9a96a3; --accent:#f0a27f; --ok:#5fd38d; --warn:#ff7b72; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); font: 16px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; }
+  main { height:100%; display:grid; grid-template-rows:auto 1fr auto; gap:16px; padding:22px 26px; }
+  header { display:flex; align-items:baseline; gap:14px; }
+  header h1 { margin:0; font-size:15px; color:var(--dim); font-weight:600; letter-spacing:.04em; text-transform:uppercase; }
+  #conn { font-size:13px; color:var(--dim); }
+  #conn.on { color:var(--ok); }
+  #now { display:grid; grid-template-columns: 1fr 230px; gap:22px; min-height:0; }
+  .card { background:var(--card); border-radius:16px; padding:20px 24px; min-height:0; overflow:auto; }
+  #kicker { font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); font-weight:700; }
+  #title { margin:6px 0 4px; font-size:30px; letter-spacing:-.02em; }
+  #text { margin:0 0 18px; color:var(--dim); font-size:15px; }
+  #sayLabel { font-size:12px; color:var(--dim); text-transform:uppercase; letter-spacing:.1em; margin-bottom:6px; }
+  #say { font-size:27px; line-height:1.45; margin:0; }
+  #side { display:flex; flex-direction:column; gap:16px; }
+  #clock { font-size:64px; font-weight:700; font-variant-numeric: tabular-nums; text-align:center; line-height:1; }
+  #clock.low { color:var(--warn); }
+  #clockLabel { text-align:center; color:var(--dim); font-size:12px; margin-top:6px; }
+  .bar { height:6px; border-radius:3px; background:rgba(255,255,255,.1); overflow:hidden; margin-top:12px; }
+  .bar i { display:block; height:100%; width:0; background:var(--accent); }
+  #next { font-size:14px; color:var(--dim); }
+  #next b { color:var(--fg); display:block; font-size:16px; margin-top:4px; }
+  #list { list-style:none; margin:0; padding:0; font-size:13px; color:var(--dim); }
+  #list li { padding:3px 6px; border-radius:6px; cursor:pointer; }
+  #list li:hover { background:rgba(255,255,255,.06); }
+  #list li.cur { background:rgba(240,162,127,.15); color:var(--fg); }
+  footer { display:flex; gap:10px; align-items:center; }
+  button { border:0; border-radius:10px; padding:10px 18px; font: 600 15px -apple-system, system-ui, sans-serif; background:#2d2c36; color:var(--fg); cursor:pointer; }
+  button.main { background:var(--accent); color:#1b1a20; }
+  footer .keys { margin-left:auto; color:var(--dim); font-size:12px; }
+  #waiting { display:none; }
+  body.idle #now { display:none; }
+  body.idle #waiting { display:block; }
+  /* janela pequena (canto da tela): só a fala, o cronômetro e os botões */
+  @media (max-width: 640px) {
+    main { padding:12px 14px; gap:10px; }
+    header h1 { font-size:12px; }
+    #now { grid-template-columns: 1fr; grid-template-rows: auto 1fr; gap:10px; }
+    #side { order:-1; flex-direction:row; gap:10px; }
+    #side > .card { padding:10px 12px; }
+    #side > .card:last-child { display:none; } /* lista de cenas */
+    #clock { font-size:34px; }
+    #clockLabel { display:none; }
+    #next { flex:1; font-size:12px; }
+    #next b { font-size:14px; }
+    .card { padding:14px 16px; }
+    #title { font-size:20px; }
+    #text { display:none; }
+    #say { font-size:21px; }
+    footer { flex-wrap:wrap; gap:6px; }
+    button { padding:8px 10px; font-size:13px; flex:1; }
+    footer .keys { display:none; }
+  }
+</style>
+</head>
+<body class="idle">
+<main>
+  <header><h1>🎬 Tela do apresentador</h1><span id="conn">procurando a apresentação…</span></header>
+  <section id="waiting" class="card">
+    <h2 style="margin-top:0">Pronto para começar</h2>
+    <p>Deixe a janela do escritório (<b>localhost:4321/?demo&amp;tour</b>) na tela que você vai gravar e esta aqui no outro monitor.
+      A legenda some da tela gravada enquanto esta janela estiver aberta.</p>
+    <button class="main" id="startBtn">▶ Começar a apresentação</button>
+  </section>
+  <section id="now">
+    <div class="card">
+      <div id="kicker"></div>
+      <h2 id="title"></h2>
+      <p id="text"></p>
+      <div id="sayLabel">🎙️ Sugestão de fala</div>
+      <p id="say"></p>
+    </div>
+    <div id="side">
+      <div class="card"><div id="clock">0</div><div id="clockLabel">segundos nesta cena</div><div class="bar"><i id="bar"></i></div></div>
+      <div class="card" id="next"></div>
+      <div class="card"><ul id="list"></ul></div>
+    </div>
+  </section>
+  <footer>
+    <button id="prev">⏮ Anterior</button>
+    <button id="pause" class="main">⏯ Pausar</button>
+    <button id="nextBtn">Próxima ⏭</button>
+    <button id="stop">⏹ Encerrar</button>
+    <span class="keys">← → trocam de cena · espaço pausa</span>
+  </footer>
+</main>
+<script>
+  const $ = id => document.getElementById(id);
+  const chan = new BroadcastChannel('aw-tour');
+  const cmd = (c, extra = {}) => chan.postMessage({ type: 'cmd', cmd: c, ...extra });
+  let state = null, received = 0;
+  chan.postMessage({ type: 'hello' });
+  addEventListener('beforeunload', () => chan.postMessage({ type: 'bye' }));
+  setInterval(() => { if (Date.now() - received > 3000) chan.postMessage({ type: 'hello' }); }, 2000); // reconecta se a outra janela recarregar
+  chan.onmessage = ({ data }) => {
+    if (data.type !== 'state') return;
+    received = Date.now(); state = { ...data, at: performance.now() };
+    $('conn').textContent = data.on ? '● conectado à apresentação' : '● conectado (tour parado)'; $('conn').className = 'on';
+    document.body.classList.toggle('idle', !data.on);
+    if (!data.on) return;
+    $('kicker').textContent = `${data.kicker} · cena ${data.i + 1} de ${data.total}`;
+    $('title').textContent = data.title;
+    $('text').textContent = data.text;
+    $('say').textContent = data.say;
+    $('next').innerHTML = `Próxima cena<b>${data.next}</b>`;
+    $('pause').textContent = data.paused ? '▶ Continuar' : '⏯ Pausar';
+    $('list').innerHTML = data.titles.map((t, k) => `<li data-i="${k}" class="${k === data.i ? 'cur' : ''}">${k + 1}. ${t.replace(/</g, '&lt;')}</li>`).join('');
+  };
+  $('list').onclick = e => { const li = e.target.closest('li'); if (li) cmd('go', { i: Number(li.dataset.i) }); };
+  // cronômetro local (a outra janela manda o tempo restante a cada troca/pausa)
+  (function tick() {
+    if (state?.on) {
+      const left = state.paused ? state.left : Math.max(0, state.left - (performance.now() - state.at));
+      $('clock').textContent = Math.ceil(left / 1000);
+      $('clock').classList.toggle('low', left < 4000 && !state.paused);
+      $('bar').style.width = (100 * (1 - left / state.ms)) + '%';
+      $('clockLabel').textContent = state.paused ? 'pausado' : 'segundos nesta cena';
+    }
+    requestAnimationFrame(tick);
+  })();
+  $('startBtn').onclick = () => cmd('start');
+  $('prev').onclick = () => cmd('prev');
+  $('nextBtn').onclick = () => cmd('next');
+  $('pause').onclick = () => cmd('pause');
+  $('stop').onclick = () => cmd('stop');
+  addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight') cmd('next');
+    else if (e.key === 'ArrowLeft') cmd('prev');
+    else if (e.key === ' ') { e.preventDefault(); cmd('pause'); }
+  });
+</script>
+</body>
+</html>
