@@ -11,7 +11,8 @@ Ele usa o modo demo, com dados de exemplo, então nada das suas sessões reais a
    - Com dois monitores: arraste a janelinha para o outro monitor (ou estique para ver também a lista de cenas).
    - Com um monitor só: deixe a janelinha no canto e grave **só a janela do escritório** (`Cmd + Shift + 5` → *Gravar parte selecionada*).
 3. Silencie as notificações (Foco → Não perturbe) e comece a gravar (`Cmd + Shift + 5`).
-4. O tour começa sozinho e cada cena avança no tempo dela. **Duração total: ~4 min 20 s.**
+4. O tour começa sozinho e cada cena avança no tempo dela. **A versão padrão tem 1 minuto** (10 cenas). A versão completa,
+   com 18 cenas e ~4 min 20 s, fica em **http://localhost:4321/?demo&tour=completo**.
 
 | Tecla | O que faz |
 |---|---|
@@ -23,7 +24,23 @@ Ele usa o modo demo, com dados de exemplo, então nada das suas sessões reais a
 
 > Dica: faça uma passada de ensaio antes. Se uma cena terminar antes da sua fala, aperte `espaço`; se quiser pular, `→`.
 
-## Cenas e sugestão de narração
+## Versão de 1 minuto (padrão)
+
+| # | Cena | Tempo | Sugestão de fala |
+|---|---|---:|---|
+| 1 | Abertura | 5 s | "Esses são os meus agentes do Claude Code trabalhando ao vivo, num escritório 3D." |
+| 2 | Ferramentas | 7 s | "Cada ferramenta tem um lugar: terminal, biblioteca, internet, quadro do Jira." |
+| 3 | Heróis | 7 s | "Dá para trocar o visual: heróis de capa ou de armadura." |
+| 4 | 👔 Chefe | 6 s | "O chefe dá bronca em quem está à toa." |
+| 5 | 🛡️ Segurança | 7 s | "O head de segurança dá dicas… às vezes em jargão demais." |
+| 6 | 💪 CTO | 6 s | "E o CTO dá bronca em todo mundo, até no chefe." |
+| 7 | 🤖 Limpinho | 4 s | "O Limpinho mantém tudo limpo." |
+| 8 | Jira e Slack | 5 s | "Jira e Slack aparecem na parede, ao vivo." |
+| 9 | 🖥️ Terminal | 9 s | "Clico num agente, vejo o terminal dele e mando mensagens, com fila." |
+| 10 | Encerramento | 4 s | "Código aberto no meu GitHub: washingtonsarago/agents-do-wash." |
+| | **Total** | **60 s** | |
+
+## Versão completa (`?demo&tour=completo`): cenas e sugestão de narração
 
 | # | Cena | Tempo | Sugestão de fala |
 |---|---|---:|---|
