@@ -206,6 +206,14 @@ const PALETTE = ['#6a9bd8', '#7bb37b', '#b07cc6', '#e7a33e', '#4fb3b3', '#e46a8f
 const hash = s => [...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 const colorFor = a => a.kind === 'main' ? '#3d6fb6' : PALETTE[hash(a.type) % PALETTE.length];
 
+// cada tipo de agente ganha a próxima paleta de herói, na ordem em que aparece (só repete depois de usar todas)
+const typeSlots = new Map();
+const slotOf = a => {
+  const key = a.type || a.id;
+  if (!typeSlots.has(key)) typeSlots.set(key, typeSlots.size);
+  return typeSlots.get(key);
+};
+
 // visual dos agentes (clássico, capas, armaduras), lembrado neste navegador
 let skin = 'classico';
 try { if (SKINS[localStorage.getItem('aw-skin')]) skin = localStorage.getItem('aw-skin'); } catch {}
@@ -214,7 +222,7 @@ function setSkin(next) {
   try { localStorage.setItem('aw-skin', next); } catch {}
   for (const p of people.values()) { // troca o corpo de cada um, mantendo posição, nome e balão
     p.g.remove(p.buddy.root);
-    p.buddy = makeBuddy({ color: p.color, main: p.a.kind === 'main', seed: hash(p.a.id), skin });
+    p.buddy = makeBuddy({ color: p.color, main: p.a.kind === 'main', seed: slotOf(p.a), skin });
     p.g.add(p.buddy.root);
   }
 }
@@ -224,7 +232,7 @@ const known = new Map(); // id -> info do agente (para recriar quem saiu e volto
 function makePerson(a) {
   const color = colorFor(a);
   const g = new THREE.Group();
-  const buddy = makeBuddy({ color, main: a.kind === 'main', seed: hash(a.id), skin });
+  const buddy = makeBuddy({ color, main: a.kind === 'main', seed: slotOf(a), skin }); // mesmo tipo de agente, mesmo herói
   g.add(buddy.root);
   const name = label(a.kind === 'main' ? `👑 ${a.name}` : a.name, { size: 22 });
   name.position.y = 4.2; g.add(name);

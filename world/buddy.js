@@ -35,6 +35,26 @@ function emblemShape(kind) {
   return new THREE.ShapeGeometry(s);
 }
 
+// Paletas de cores inspiradas em heróis conhecidos (só as cores: sem nomes, símbolos ou uniformes oficiais).
+// A primeira de cada lista vai para o agente principal; os subagents variam entre as outras.
+const CAPE_PALETTES = [
+  { top: '#2a5bd7', bottom: '#2a5bd7', cape: '#c8102e', boots: '#c8102e', gloves: '#2a5bd7', accent: '#f5c518', plate: '#f5c518', emblem: '#c8102e', shape: 0, hair: '#1c1c22' }, // azul, vermelho e amarelo (Superman)
+  { top: '#6b6f76', bottom: '#2a2b30', cape: '#1b1c20', boots: '#1b1c20', accent: '#e8b923', plate: '#e8b923', emblem: '#1b1c20', shape: 3, cowl: '#1b1c20', mask: '#1b1c20' },       // cinza e preto (Batman)
+  { top: '#c8102e', bottom: '#c8102e', cape: null, boots: '#e8b923', gloves: '#c8102e', accent: '#e8b923', plate: '#ffffff', emblem: '#e8b923', shape: 1, cowl: '#c8102e' },               // vermelho e dourado, sem capa (Flash)
+  { top: '#1f8a3b', bottom: '#1b1c20', arms: '#1b1c20', cape: null, boots: '#1f8a3b', gloves: '#ffffff', accent: '#1b1c20', plate: '#1b1c20', emblem: '#ffffff', ring: true, mask: '#1f8a3b' }, // verde e preto (Lanterna Verde)
+  { top: '#c8102e', bottom: '#1f3fa6', cape: null, boots: '#c8102e', gloves: '#d4a52a', accent: '#d4a52a', plate: '#d4a52a', emblem: '#c8102e', shape: 2, hair: '#1c1c22', arms: '#f1c9a5' }, // vermelho, azul e dourado (Mulher-Maravilha)
+  { top: '#e8812a', bottom: '#2f8f4e', cape: null, boots: '#2f8f4e', gloves: '#2f8f4e', accent: '#d4a52a', plate: '#d4a52a', emblem: '#2f8f4e', shape: 0, hair: '#d9a441' },              // laranja e verde (Aquaman)
+];
+const ARMOR_PALETTES = [
+  { metal: '#b3202a', plate: '#d4a52a', helmet: '#b3202a', face: '#d4a52a', lens: '#f4fbff', core: '#bff4ff' },                     // vermelho e dourado (Homem de Ferro)
+  { metal: '#1f3fa6', plate: '#c8102e', helmet: '#1f3fa6', face: '#1f3fa6', limbs: '#1f3fa6', lens: '#ffffff', core: '#ffffff', shield: true }, // azul, vermelho e branco (Capitão América)
+  { metal: '#c8102e', plate: '#c8102e', limbs: '#1f3fa6', lens: '#ffffff', core: '#1b1c20', bigLens: true },                        // vermelho e azul (Homem-Aranha)
+  { metal: '#1b1c20', plate: '#9aa0a8', helmet: '#1b1c20', face: '#1b1c20', lens: '#c9a7ff', core: '#b388ff' },                     // preto e prata (Pantera Negra)
+  { metal: '#4f9a3a', plate: '#6a3d9a', helmet: '#4f9a3a', face: '#4f9a3a', limbs: '#4f9a3a', lens: '#e8ffd8', core: '#c6ff9e' },   // verde e roxo (Hulk)
+  { metal: '#8d939c', plate: '#3a3f4a', helmet: '#c0c5cc', lens: '#bfe3ff', core: '#7fc8ff', cape: '#b3202a' },                     // prata com capa vermelha (Thor)
+];
+const pickPalette = (list, main, seed) => main ? list[0] : list[1 + (seed % (list.length - 1))];
+
 export function makeBuddy({ color, main = false, seed = 1, skin = 'classico' }) {
   const root = new THREE.Group();
   const body = new THREE.Group(); root.add(body); // tudo que balança junto
@@ -70,59 +90,72 @@ export function makeBuddy({ color, main = false, seed = 1, skin = 'classico' }) 
 
   let armL, armR;
   if (skin === 'capa') {
-    // ---------- herói de capa ----------
-    const suit = mat(color), accent = mat(main ? '#e7b53a' : '#f2f2f2', { metalness: main ? .6 : 0, roughness: .35 });
-    const trim = mat(darker(color, .45));
+    // ---------- herói de capa (cores inspiradas em heróis clássicos) ----------
+    const P = pickPalette(CAPE_PALETTES, main, seed);
+    const top = mat(P.top), bottom = mat(P.bottom), accent = mat(P.accent, { metalness: .35, roughness: .35 });
+    const extremity = mat(P.boots);
     add(body, new THREE.CapsuleGeometry(R, 1.1, 8, 24), mat('#f1c9a5'), 0, 1.85, 0); // rosto/pele
-    add(body, new THREE.CylinderGeometry(R + .02, R + .02, 1.05, 24), suit, 0, 1.55, 0);
-    add(body, new THREE.SphereGeometry(R + .02, 24, 12, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), suit, 0, 1.03, 0);
-    add(body, new THREE.SphereGeometry(R + .03, 24, 10, 0, Math.PI * 2, 0, Math.PI * .3), mat('#2b2320'), 0, 2.4, 0); // cabelo
-    add(body, new THREE.TorusGeometry(R + .03, .06, 8, 32), accent, 0, 1.12, 0).rotation.x = Math.PI / 2; // cinto
-    // máscara + olhos brancos
-    add(body, new THREE.CylinderGeometry(R + .035, R + .035, .32, 24, 1, true, -1.05, 2.1), mat('#1c1b22', { side: THREE.DoubleSide }), 0, 2.45, 0);
+    add(body, new THREE.CylinderGeometry(R + .02, R + .02, .7, 24), top, 0, 1.73, 0);
+    add(body, new THREE.CylinderGeometry(R + .02, R + .02, .38, 24), bottom, 0, 1.2, 0);
+    add(body, new THREE.SphereGeometry(R + .02, 24, 12, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), bottom, 0, 1.03, 0);
+    // capuz (cobre a cabeça até a máscara) ou cabelo
+    if (P.cowl) add(body, new THREE.SphereGeometry(R + .035, 24, 12, 0, Math.PI * 2, 0, Math.PI * .44), mat(P.cowl), 0, 2.4, 0);
+    else add(body, new THREE.SphereGeometry(R + .03, 24, 10, 0, Math.PI * 2, 0, Math.PI * .3), mat(P.hair || '#2b2320'), 0, 2.4, 0);
+    add(body, new THREE.TorusGeometry(R + .03, .06, 8, 32), accent, 0, 1.4, 0).rotation.x = Math.PI / 2; // cinto
+    if (P.mask) add(body, new THREE.CylinderGeometry(R + .035, R + .035, .32, 24, 1, true, -1.05, 2.1), mat(P.mask, { side: THREE.DoubleSide }), 0, 2.45, 0);
     for (const ex of [-.27, .27]) blinkEye(ex, 2.45, .72, false);
     smile();
-    // emblema no peito
-    const plate = add(body, new THREE.CircleGeometry(.3, 24), accent, 0, 1.78, R + .025); plate.scale.y = .8;
-    add(body, emblemShape(seed % 4), main ? mat('#c0392b') : trim, 0, 1.78, R + .035);
-    // capa (pivô nos ombros, presa nas costas)
-    cape = new THREE.Group(); cape.position.set(0, 2.25, -R - .04); body.add(cape);
-    const cs = new THREE.Shape(); cs.moveTo(-.55, 0); cs.lineTo(.55, 0); cs.lineTo(.85, -1.95); cs.quadraticCurveTo(0, -2.15, -.85, -1.95); cs.closePath();
-    const capeMesh = add(cape, new THREE.ShapeGeometry(cs, 8), mat(main ? '#c0392b' : darker(color, .55), { side: THREE.DoubleSide }));
-    capeMesh.rotation.y = Math.PI; capeMesh.position.z = -.02;
-    add(body, new THREE.TorusGeometry(.6, .05, 6, 20, Math.PI), accent, 0, 2.27, -.2).rotation.set(Math.PI / 2, 0, 0); // fecho da capa
-    const glove = { geo: new THREE.SphereGeometry(.16, 12, 10), mat: trim };
-    armL = limb(-R - .05, 1.9, .55, suit, glove);
-    armR = limb(R + .05, 1.9, .55, suit, glove);
-    legs(suit, new THREE.BoxGeometry(.32, .3, .44), trim, -.46);
+    // emblema: forma geométrica sobre um fundo (nenhum símbolo oficial)
+    const plate = add(body, new THREE.CircleGeometry(.3, 24), mat(P.plate), 0, 1.8, R + .025); plate.scale.y = P.ring ? 1 : .8;
+    if (P.ring) add(body, new THREE.TorusGeometry(.18, .05, 8, 24), mat(P.emblem), 0, 1.8, R + .035);
+    else add(body, emblemShape(P.shape ?? seed % 4), mat(P.emblem), 0, 1.8, R + .035);
+    if (P.cape) { // capa (pivô nos ombros, presa nas costas)
+      cape = new THREE.Group(); cape.position.set(0, 2.25, -R - .04); body.add(cape);
+      const cs = new THREE.Shape(); cs.moveTo(-.55, 0); cs.lineTo(.55, 0); cs.lineTo(.85, -1.95); cs.quadraticCurveTo(0, -2.15, -.85, -1.95); cs.closePath();
+      const capeMesh = add(cape, new THREE.ShapeGeometry(cs, 8), mat(P.cape, { side: THREE.DoubleSide }));
+      capeMesh.rotation.y = Math.PI; capeMesh.position.z = -.02;
+      add(body, new THREE.TorusGeometry(.6, .05, 6, 20, Math.PI), accent, 0, 2.27, -.2).rotation.set(Math.PI / 2, 0, 0); // fecho da capa
+    }
+    const glove = { geo: new THREE.SphereGeometry(.16, 12, 10), mat: mat(P.gloves || P.boots) };
+    armL = limb(-R - .05, 1.9, .55, mat(P.arms || P.top), glove);
+    armR = limb(R + .05, 1.9, .55, mat(P.arms || P.top), glove);
+    legs(mat(P.legs || P.bottom), new THREE.BoxGeometry(.32, .3, .44), extremity, -.46);
   } else if (skin === 'armadura') {
-    // ---------- herói de armadura ----------
-    const metal = mat(color, { metalness: .65, roughness: .3 });
-    const plateM = mat(main ? '#d4a52a' : darker(color, .55), { metalness: .75, roughness: .28 });
-    const glow = new THREE.MeshBasicMaterial({ color: '#bff4ff' });
+    // ---------- herói de armadura (cores inspiradas em heróis clássicos) ----------
+    const P = pickPalette(ARMOR_PALETTES, main, seed);
+    const metal = mat(P.metal, { metalness: .65, roughness: .3 });
+    const plateM = mat(P.plate, { metalness: .75, roughness: .28 });
+    const limbM = mat(P.limbs || P.metal, { metalness: .6, roughness: .32 });
+    const glow = new THREE.MeshBasicMaterial({ color: P.lens });
     add(body, new THREE.CapsuleGeometry(R, 1.1, 8, 24), metal, 0, 1.85, 0);
-    add(body, new THREE.SphereGeometry(R + .025, 24, 12, 0, Math.PI * 2, 0, Math.PI * .42), plateM, 0, 2.4, 0); // topo do capacete
-    add(body, new THREE.CylinderGeometry(R + .03, R + .03, .62, 24, 1, true, -1.15, 2.3), plateM, 0, 2.3, 0); // máscara
-    for (const s of [-1, 1]) { // visor: lentes alongadas
+    add(body, new THREE.SphereGeometry(R + .025, 24, 12, 0, Math.PI * 2, 0, Math.PI * .42), mat(P.helmet || P.plate, { metalness: .75, roughness: .28 }), 0, 2.4, 0); // topo do capacete
+    add(body, new THREE.CylinderGeometry(R + .03, R + .03, .62, 24, 1, true, -1.15, 2.3), mat(P.face || P.plate, { metalness: .75, roughness: .28 }), 0, 2.3, 0); // máscara
+    const lensW = P.bigLens ? 2.1 : 1.7, lensH = P.bigLens ? .9 : .55;
+    for (const sd of [-1, 1]) { // visor: lentes
       const lens = new THREE.Mesh(new THREE.CircleGeometry(.14, 20), glow);
-      lens.scale.set(1.7, .55, 1); lens.position.set(s * .27, 2.45, R + .045); lens.rotation.z = s * -.22; body.add(lens);
+      lens.scale.set(lensW, lensH, 1); lens.position.set(sd * .28, 2.45, R + .045); lens.rotation.z = sd * -.22; body.add(lens);
     }
     for (const y of [1.2, 2.1]) add(body, new THREE.TorusGeometry(R + .02, .035, 6, 32), plateM, 0, y, 0).rotation.x = Math.PI / 2;
-    const core = new THREE.Mesh(new THREE.CylinderGeometry(.17, .17, .05, 6), glow); // núcleo de energia
+    const core = new THREE.Mesh(new THREE.CylinderGeometry(.17, .17, .05, 6), new THREE.MeshBasicMaterial({ color: P.core || '#bff4ff' })); // núcleo
     core.rotation.x = Math.PI / 2; core.position.set(0, 1.72, R + .02); body.add(core);
     add(body, new THREE.TorusGeometry(.22, .04, 6, 6), plateM, 0, 1.72, R + .03);
-    for (const s of [-1, 1]) add(body, new THREE.SphereGeometry(.3, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2), plateM, s * (R - .05), 2.05, 0); // ombreiras
-    if (main) { // escudo redondo nas costas
+    for (const sd of [-1, 1]) add(body, new THREE.SphereGeometry(.3, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2), plateM, sd * (R - .05), 2.05, 0); // ombreiras
+    if (P.shield) { // escudo redondo nas costas (anéis, sem símbolo)
       const sh = new THREE.Group(); sh.position.set(0, 1.75, -R - .06); body.add(sh);
       [['#c0392b', .62], ['#ecf0f1', .46], ['#2c5aa0', .3]].forEach(([c, r], i) => {
         const d = add(sh, new THREE.CylinderGeometry(r, r, .06, 32), mat(c, { metalness: .5, roughness: .3 }), 0, 0, -i * .012);
         d.rotation.x = Math.PI / 2;
       });
     }
+    if (P.cape) { // capa curta (ex.: o deus do trovão)
+      cape = new THREE.Group(); cape.position.set(0, 2.2, -R - .05); body.add(cape);
+      const cs = new THREE.Shape(); cs.moveTo(-.6, 0); cs.lineTo(.6, 0); cs.lineTo(.8, -1.8); cs.lineTo(-.8, -1.8); cs.closePath();
+      add(cape, new THREE.ShapeGeometry(cs), mat(P.cape, { side: THREE.DoubleSide })).rotation.y = Math.PI;
+    }
     const gauntlet = { geo: new THREE.BoxGeometry(.26, .26, .26), mat: plateM };
-    armL = limb(-R - .05, 1.9, .55, metal, gauntlet);
-    armR = limb(R + .05, 1.9, .55, metal, gauntlet);
-    legs(metal, new THREE.BoxGeometry(.34, .22, .46), plateM);
+    armL = limb(-R - .05, 1.9, .55, limbM, gauntlet);
+    armR = limb(R + .05, 1.9, .55, limbM, gauntlet);
+    legs(limbM, new THREE.BoxGeometry(.34, .22, .46), plateM);
   } else {
     // ---------- clássico: cápsula amarela de macacão ----------
     const overall = mat(color);
