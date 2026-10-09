@@ -2,13 +2,22 @@
 
 Um escritório 3D com jardim onde seus agentes do Claude Code (bonequinhos amarelos de macacão; o principal usa coroa 👑, os subagents têm macacão na cor do seu tipo) andam pelo cenário conforme trabalham.
 
-```
-~/.claude/projects/**/*.jsonl ──tail (1s)──┐
-                                           ├─▶ observer/server.js ──SSE──▶ world/index.html (Three.js)
-hooks do Claude Code ──emit.sh──POST /hook─┘
-```
+![Visão geral do escritório e do jardim](docs/screenshots/visao-geral.jpg)
 
-- **Observador**: Node puro, zero dependências, somente leitura, só escuta em `127.0.0.1`.
+| | |
+|---|---|
+| ![Bonequinhos trabalhando no escritório](docs/screenshots/bonequinhos.jpg) | ![Jardim com riacho, ponte e chafariz](docs/screenshots/jardim.jpg) |
+| **Escritório**: cada agente vai até a estação da ferramenta que está usando | **Jardim**: agentes ociosos atravessam a ponte e descansam no chafariz |
+| ![Terminal da sessão no site](docs/screenshots/terminal.jpg) | ![Quadro Kanban do Jira](docs/screenshots/jira.jpg) |
+| **Terminal**: histórico e ao vivo de cada sessão, com envio de mensagens | **Jira**: suas issues, com destaque para as que os agentes mexeram |
+
+<sub>Prints do modo demo (`/?demo`), com dados fictícios.</sub>
+
+## Arquitetura
+
+![Arquitetura do Agents do Wash](docs/arquitetura.png)
+
+- **Observador**: Node puro, zero dependências, só escuta em `127.0.0.1`. Lê os transcripts e recebe os hooks; a única ação que ele executa é o envio de mensagens (`claude -p --resume`), protegido por token.
 - **Duas fontes**: os transcripts JSONL (sempre) e os hooks (opcional, instantâneo). Eventos repetidos são descartados pelo `tool_use_id`.
 - **Mundo**: Three.js via CDN, sem build. `world/office.js` monta o cenário; `world/buddy.js`, os bonequinhos com animação procedural (andar, correr, sentar, acenar, pular, dançar…).
 - **Cenário**: escritório com 36 mesas em 6 ilhas, biblioteca, sala de servidores, sala de reunião com quadro, copa, relógio com a hora real. Pela porta de vidro sai-se para o jardim: riacho, ponte em arco, chafariz com bancos, árvores e flores.

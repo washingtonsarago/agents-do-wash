@@ -82,7 +82,7 @@ export function makeKanban() {
       const col = cards.filter(c => (COLUMNS.some(([k]) => k === c.cat) ? c.cat : 'new') === cat);
       g.fillStyle = '#5b5866'; g.font = `700 34px ${FONT}`;
       g.fillText(`${title.toUpperCase()}  ${col.length}`, x + 24, top + 20);
-      const cardH = 150, gap = 16, maxCards = Math.floor((H - top - 110) / (cardH + gap));
+      const cardH = 172, gap = 16, maxCards = Math.floor((H - top - 110) / (cardH + gap));
       col.slice(0, maxCards).forEach((c, i) => {
         const y = top + 76 + i * (cardH + gap), cx = x + 16, cw = colW - 32;
         const touch = state.touched?.[c.key];
