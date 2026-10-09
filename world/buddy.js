@@ -14,7 +14,7 @@ function add(parent, geo, m, x = 0, y = 0, z = 0) {
   const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; parent.add(o); return o;
 }
 
-export const EMOTES = { Wave: 1.6, Jump: .8, Yes: 1, No: 1, Punch: 1, ThumbsUp: 1.2, Dance: 2.4, Point: 2.2 };
+export const EMOTES = { Wave: 1.6, Jump: .8, Yes: 1, No: 1, Punch: 1, ThumbsUp: 1.2, Dance: 2.4, Point: 2.2, Drink: 1.8 };
 
 export const SKINS = {
   classico: '🟡 Clássico',
@@ -68,6 +68,7 @@ export function makeBuddy({ color, main = false, seed = 1, skin = 'classico', pa
     const pivot = new THREE.Group(); pivot.position.set(x, y, 0); body.add(pivot);
     add(pivot, new THREE.CapsuleGeometry(r, len, 4, 8), m, 0, -len / 2, 0);
     add(pivot, hand.geo, hand.mat, hand.x || 0, -len - .08, hand.z || 0);
+    pivot.userData.len = len;
     return pivot;
   };
   const legL = new THREE.Group(); legL.position.set(-.3, .62, 0); root.add(legL);
@@ -316,6 +317,7 @@ export function makeBuddy({ color, main = false, seed = 1, skin = 'classico', pa
         case 'Punch': tgt.aRx = Math.sin(k * Math.PI * 4) > 0 ? -1.6 : -.3; tgt.aLx = Math.sin(k * Math.PI * 4) > 0 ? -.3 : -1.6; tgt.bry = Math.sin(k * Math.PI * 4) * .2; break;
         case 'ThumbsUp': tgt.aRz = -1.9; tgt.aRx = -.6; tgt.by += env * .3; break;
         case 'Point': tgt.aRx = -1.45; tgt.aRz = -.1 + Math.sin(t * 12) * .14; tgt.bx = -.06; tgt.bry = .12; break; // bronca: dedo em riste
+        case 'Drink': tgt.aRx = -2.05 * env; tgt.aRz = -.25 - .35 * env; tgt.bx = -.05 * env; break; // gole de café
         case 'Dance': tgt.brz = Math.sin(t * 9) * .25; tgt.by += Math.abs(Math.sin(t * 9)) * .35; tgt.aLz = 2 + Math.sin(t * 9) * .5; tgt.aRz = -2 - Math.cos(t * 9) * .5; break;
       }
       if (k >= 1) emote = null;
@@ -340,8 +342,22 @@ export function makeBuddy({ color, main = false, seed = 1, skin = 'classico', pa
     for (const e of eyes) e.scale.y = blink ? .1 : 1;
   }
 
+  // caneca de café na mão direita
+  let mug = null;
+  function holdMug(on) {
+    if (on && !mug) {
+      mug = new THREE.Group();
+      const y = -(armR.userData.len || .55) - .16;
+      mug.position.set(.02, y, .16);
+      add(mug, new THREE.CylinderGeometry(.11, .09, .2, 14), mat('#f4efe6'));
+      add(mug, new THREE.CircleGeometry(.095, 14), mat('#5a3a24'), 0, .101, 0).rotation.x = -Math.PI / 2; // café
+      add(mug, new THREE.TorusGeometry(.06, .018, 6, 12), mat('#f4efe6'), .12, 0, 0);
+      armR.add(mug);
+    } else if (!on && mug) { armR.remove(mug); mug = null; }
+  }
+
   return {
-    root, update,
+    root, update, holdMug,
     play(name) { state = name; },
     emote(name) { if (!EMOTES[name]) return 0; emote = name; emoteT = 0; return EMOTES[name] * 1000; },
     get busy() { return !!emote; },

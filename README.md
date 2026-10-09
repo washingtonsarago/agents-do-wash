@@ -100,7 +100,7 @@ No seletor do topo, **🎲 Cada um no seu estilo** usa a roupa escolhida por cad
 ## O chefe 👔
 
 Um personagem mais forte, de camisa social azul-clara, patrulha o escritório e dá broncas bem-humoradas, de preferência em
-quem está descansando no chafariz ou acabou de errar ("Ô Bia, chafariz é na hora do almoço!"). Quem leva bronca leva um susto,
+quem está no chafariz, na copa ou acabou de errar ("Ô Bia, chafariz é na hora do almoço!", "De novo no café?"). Quem leva bronca leva um susto,
 responde ("Já vou, chefe!") e, se estava no chafariz, volta para a mesa. É só visual: não é uma sessão do Claude e não gasta token.
 O botão 👔 no topo liga e desliga.
 
@@ -109,7 +109,7 @@ O botão 👔 no topo liga e desliga.
 Barba cheia, jaqueta puffer preta e distintivo no peito: circula pelo escritório dando dicas de segurança de acordo com
 o que cada agente está fazendo. Quem está pedindo permissão ouve "Lê com calma antes de aprovar!", quem está no terminal
 ouve "Cuidado com rm -rf!", quem está na web ouve "Confere o domínio antes de clicar!", e os demais recebem dicas gerais
-("Esse .env não vai pro git, né?", "Rotacionou aquela chave de API?"). Também solta dicas para o time todo.
+("Esse .env não vai pro git, né?", "Rotacionou aquela chave de API?"). Também solta dicas para o time todo. Às vezes exagera no jargão ("Isso tá vulnerável a TOCTOU com race no inode!"), o agente responde "Hã? Não entendi nada!" e ele traduz: "Resumindo: confere o arquivo na hora de usar 🙄".
 O agente concorda e responde ("Anotado!"). Também é só visual, sem custo de token; o botão 🛡️ no topo liga e desliga.
 
 ## Dar nomes aos agentes
@@ -209,5 +209,5 @@ a cada minuto; quando conectar, aparece **🤖 Slack bot ligado** no topo do sit
 | Outros `mcp__*` (Gmail, Drive…) | 📮 Integrações | Yes |
 | Edit, Write e o resto | ✍️ A própria mesa | senta e digita |
 
-Todos (agentes e chefe) desviam de mesas, estantes, paredes, riacho, chafariz e árvores: o mapa vira uma grade de obstáculos e cada deslocamento é calculado com A\*, atravessando o riacho só pela ponte. Longe do destino, o bonequinho corre; perto, anda. Sem atividade por 45 s, ele atravessa a ponte e senta num banco do chafariz. Ao terminar o turno (`Stop`), dança na mesa. Depois de 30 min, sai do escritório.
+Todos (agentes e chefe) desviam de mesas, estantes, paredes, riacho, chafariz e árvores: o mapa vira uma grade de obstáculos e cada deslocamento é calculado com A\*, atravessando o riacho só pela ponte. Longe do destino, o bonequinho corre; perto, anda. Sem atividade por 45 s, ele sorteia o que fazer à toa: ☕ café na copa (com caneca, goles e papo), 🪑 ficar na mesa, 📚 ler na biblioteca, 🤝 bater papo na sala de reunião ou ⛲ descansar no chafariz; depois de 40–90 s troca de atividade. Ao terminar o turno (`Stop`), dança na mesa. Depois de 30 min, sai do escritório.
 Na lista de moradores, cada subagent aparece abaixo de quem o criou.

@@ -226,6 +226,21 @@ export function buildWorld(scene, label) {
   mesh(new THREE.CylinderGeometry(.18, .15, .35, 12), mat('#ffffff'), 20.9, 2.1, 21.3);
   box(1.8, 4, 1.6, '#cfd6dc', 26.6, 2, 21.6); // geladeira
   for (const x of [19.5, 22, 24.5]) { mesh(new THREE.CylinderGeometry(.45, .45, .15, 16), mat('#d97757'), x, 1.3, 19.8); box(.12, 1.3, .12, '#5b5f6b', x, .65, 19.8); }
+  // vapor saindo da máquina de café
+  const steam = [];
+  for (let k = 0; k < 6; k++) {
+    const puff = new THREE.Mesh(new THREE.SphereGeometry(.12, 8, 6), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: .5, depthWrite: false }));
+    scene.add(puff); steam.push(puff);
+  }
+  updaters.push(t => steam.forEach((puff, k) => {
+    const ph = (t * .5 + k / steam.length) % 1;
+    puff.position.set(20 + Math.sin(ph * 6 + k) * .08, 3.1 + ph * 1.3, 21.6);
+    puff.scale.setScalar(.6 + ph * 1.4);
+    puff.material.opacity = .45 * (1 - ph);
+  }));
+  // lugares para tomar café, em pé, encostado no balcão (de frente para ele)
+  const coffeeSpots = [[18.2, 19.6], [20.75, 19.55], [23.25, 19.55], [25.8, 19.6], [21.5, 18.1], [24, 18.1], [19.3, 18.2]]
+    .map(([x, z]) => ({ pos: new THREE.Vector3(x, 0, z), face: 0, owner: null, kind: 'coffee' }));
   const coffeeSign = label('☕ Copa', { size: 24, bg: 'rgba(43,42,51,.75)', color: '#fff' });
   coffeeSign.position.set(22, 5.2, 21.6); scene.add(coffeeSign);
 
@@ -520,5 +535,5 @@ export function buildWorld(scene, label) {
     for (const m of SPIN) m.rotation.y += dt * .4;
   }
 
-  return { stations, desks, seats, DOOR, groundY, route, standAt, update, jiraBoard, slackTV, clearLine };
+  return { stations, desks, seats, coffeeSpots, DOOR, groundY, route, standAt, update, jiraBoard, slackTV, clearLine };
 }

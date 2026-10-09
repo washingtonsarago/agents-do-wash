@@ -189,7 +189,7 @@ function label(text, { size = 28, bg = 'rgba(255,255,255,.92)', color = '#2b2a33
 }
 
 const world = buildWorld(scene, label);
-const { stations, desks, seats, DOOR } = world;
+const { stations, desks, seats, coffeeSpots, DOOR } = world;
 
 const STATION_FOR = tool => {
   if (/^(Read|Grep|Glob|LS|NotebookRead)$/.test(tool)) return 'library';
@@ -273,7 +273,11 @@ function makePerson(a) {
   return p;
 }
 
-function release(p) { if (p.seat) { p.seat.owner = null; p.seat = null; } }
+function release(p) {
+  if (p.seat) { p.seat.owner = null; p.seat = null; }
+  p.buddy.holdMug?.(false);
+  p.restKind = null;
+}
 
 function emote(p, name) { p.emoteUntil = performance.now() + p.buddy.emote(name); }
 
@@ -294,11 +298,38 @@ function goTo(p, pos, face, gesture) {
   if (p.g.position.distanceTo(pos) < .3 && gesture) { emote(p, gesture); p.pendingEmote = null; }
 }
 
-function goRest(p) { // ocioso: vai sentar num banco do chafariz
-  const seat = seats.find(s => !s.owner);
-  if (!seat) return goTo(p, p.home, p.desk.face, null);
-  seat.owner = p.a.id; p.seat = seat;
-  goTo(p, seat.pos, seat.face, null);
+// o que cada um faz quando está à toa (sorteado com peso; troca depois de um tempo)
+const BREAKS = [['coffee', 30], ['desk', 30], ['library', 15], ['meeting', 10], ['fountain', 15]];
+const CHAT = {
+  coffee: ['Esse café tá forte hoje!', 'Alguém viu o deploy de ontem?', 'Sexta tem happy hour?', 'Quem quebrou o build?', 'Tô no terceiro café já…', 'Viram a feature nova?'],
+  meeting: ['E aquela retro, hein?', 'Bora alinhar a sprint?', 'Alguém anotou isso?', 'Isso dava um ADR…', 'Precisamos de mais testes.'],
+  library: ['📖 Hmm, interessante…', '📖 Lendo a documentação…', '📖 Então é assim que funciona!'],
+};
+function pickBreak() {
+  let r = Math.random() * BREAKS.reduce((a, [, w]) => a + w, 0);
+  for (const [k, w] of BREAKS) if ((r -= w) < 0) return k;
+  return 'desk';
+}
+const pickFree = list => { const free = list.filter(s => !s.owner); return free[Math.floor(Math.random() * free.length)]; };
+function goRest(p) {
+  const now = performance.now(), prev = p.restKind;
+  release(p);
+  let kind = pickBreak();
+  if (kind === prev) kind = pickBreak(); // tende a variar
+  p.restKind = kind;
+  p.restUntil = now + 40e3 + Math.random() * 50e3;
+  p.nextChat = now + 4e3 + Math.random() * 8e3;
+  p.nextSip = now + 2e3;
+  if (kind === 'coffee' || kind === 'fountain') {
+    const spot = pickFree(kind === 'coffee' ? coffeeSpots : seats);
+    if (spot) { spot.owner = p.a.id; p.seat = spot; return goTo(p, spot.pos, spot.face, null); }
+    kind = p.restKind = 'desk'; // lugar cheio: fica na mesa
+  }
+  if (kind === 'library' || kind === 'meeting') {
+    const pos = world.standAt(kind, Math.floor(Math.random() * 8)), st = stations[kind];
+    return goTo(p, pos, Math.atan2(st.pos.x - pos.x, st.pos.z - pos.z), null);
+  }
+  goTo(p, p.home, p.desk.face, null);
 }
 
 function act(p, tool, target) {
@@ -888,6 +919,7 @@ function react(p, emoteName, reply, after) {
 
 // 👔 o chefe: dá bronca, de preferência em quem está no chafariz ou acabou de errar
 const SCOLD = {
+  coffee: ['Ô {n}, de novo no café?', '{n}, esse já é o quinto café!', 'Café depois do deploy, {n}!', '{n}, a máquina de café não é sala de reunião!'],
   rest: ['Ô {n}, chafariz é na hora do almoço!', '{n}, o deploy não vai se fazer sozinho!', 'Levanta daí, {n}! Tem PR esperando.', '{n}, o descanso já acabou faz tempo!'],
   fail: ['{n}, esse teste quebrou de novo?', 'Quem subiu esse bug? Hein, {n}?', '{n}, roda o lint antes de commitar!', 'Vermelho no CI, {n}? Bora consertar!'],
   work: ['Bora, {n}! Cadê os testes?', '{n}, isso entra na sprint?', 'Commit pequeno, {n}! Commit pequeno!', '{n}, documentou isso?', 'Prazo é sexta, {n}!', '{n}, cadê o README?'],
@@ -897,7 +929,7 @@ const boss = createNpc({
   mutters: ['Hmm…', 'Tudo sob controle?', 'Cadê o café?', 'Quem mexeu na produção?'],
   pickTarget: now => weightedPick((p, n) => p.seat || recentlyFailed(p, n) ? 4 : p.g.position.x < 30 ? 1 : 0, now),
   talkTo(npc, p, now) {
-    const kind = p.seat ? 'rest' : recentlyFailed(p, now) ? 'fail' : 'work';
+    const kind = p.seat?.kind === 'coffee' ? 'coffee' : p.seat ? 'rest' : recentlyFailed(p, now) ? 'fail' : 'work';
     const phrase = pickOne(SCOLD[kind]).replace('{n}', firstName(p));
     npc.buddy.emote('Point'); npc.say('👔 ' + phrase);
     feedSys(`👔 <b>Chefe</b> para <b>${esc(p.a.name)}</b>: “${esc(phrase)}”`, '#7aa0d4');
@@ -916,6 +948,17 @@ const SECURITY = {
   general: ['Nunca commite segredo no repositório, {n}!', '{n}, rotacionou aquela chave de API?', 'MFA ligado em tudo, hein {n}?', 'Princípio do menor privilégio, {n}!',
     '{n}, esse .env não vai pro git, né?', 'Log não é lugar de dado pessoal, {n}!', '{n}, valida toda entrada do usuário!', 'Dependência nova? Roda o audit, {n}!',
     'Token no código? Nem pensar, {n}!', '{n}, sanitiza essa query!', 'Bloqueia a tela quando sair, {n}!'],
+  // às vezes ele exagera no jargão… e ninguém entende (depois ele traduz)
+  jargon: [
+    ['{n}, cuidado com padding oracle no TLS com cipher CBC!', 'Resumindo: usa TLS atualizado.'],
+    ['Habilita HSTS com preload e CSP strict-dynamic, {n}!', 'Resumindo: configura os cabeçalhos de segurança.'],
+    ['{n}, esse JWT tá com alg none e sem rotação de kid!', 'Resumindo: valida o token direito.'],
+    ['Zero trust com mTLS e SPIFFE, {n}, é o mínimo!', 'Resumindo: um serviço não confia no outro de graça.'],
+    ['{n}, faz threat modeling STRIDE com score DREAD!', 'Resumindo: pensa em como podem atacar isso.'],
+    ['Isso tá vulnerável a TOCTOU com race no inode, {n}!', 'Resumindo: confere o arquivo na hora de usar.'],
+    ['{n}, cadê o SBOM em CycloneDX assinado com Sigstore?', 'Resumindo: lista e assina as dependências.'],
+    ['Cuidado com SSRF via IMDSv1, {n}! Força o IMDSv2!', 'Resumindo: não deixa o servidor buscar URL de qualquer um.'],
+  ],
   team: ['Time: backup testado é backup que existe!', 'Recebeu link estranho? Reporta, não clica!', 'Senha forte e única, pessoal!', 'Segurança é responsabilidade de todo mundo!'],
 };
 const securityKind = p => p.attention ? 'waiting' : /^(Bash|BashOutput|KillShell)$/.test(p.lastTool || '') ? 'bash'
@@ -926,7 +969,17 @@ createNpc({
   mutters: SECURITY.team, mutterChance: .35,
   pickTarget: now => weightedPick(p => p.attention ? 4 : securityKind(p) !== 'general' ? 3 : 1, now),
   talkTo(npc, p) {
-    const phrase = pickOne(SECURITY[securityKind(p)]).replace('{n}', firstName(p));
+    const n = firstName(p);
+    if (Math.random() < .25) { // jargão: ninguém entende, ele traduz
+      const [hard, plain] = pickOne(SECURITY.jargon);
+      const phrase = hard.replace('{n}', n);
+      npc.buddy.emote('Point'); npc.say('🛡️ ' + phrase, 3000);
+      feedSys(`🛡️ <b>Head de Segurança</b> para <b>${esc(p.a.name)}</b>: “${esc(phrase)}”`, '#3f9e6a');
+      react(p, 'No', '😵 ' + pickOne(['Hã? Não entendi nada!', 'Pode repetir em português?', 'Vou fingir que entendi…', 'Isso é um feitiço?', 'Oi?? 🤯']));
+      setTimeout(() => { npc.say('🛡️ ' + plain + ' 🙄', 3500); feedSys(`🛡️ <b>Head de Segurança</b>: “${esc(plain)}”`, '#3f9e6a'); }, 2600);
+      return;
+    }
+    const phrase = pickOne(SECURITY[securityKind(p)]).replace('{n}', n);
     npc.buddy.emote('Point'); npc.say('🛡️ ' + phrase);
     feedSys(`🛡️ <b>Head de Segurança</b> para <b>${esc(p.a.name)}</b>: “${esc(phrase)}”`, '#3f9e6a');
     react(p, 'Yes', '👍 ' + pickOne(['Anotado!', 'Boa, vou conferir!', 'Pode deixar!', 'Já ajusto!', 'Valeu pelo toque!']));
@@ -934,7 +987,7 @@ createNpc({
 });
 
 function updateNpcs(dt, t, now) { for (const n of NPCS) n.update(dt, t, now); }
-if (window.__agentWorld) Object.assign(window.__agentWorld, { boss, npcs: NPCS }); // para depurar
+if (window.__agentWorld) Object.assign(window.__agentWorld, { boss, npcs: NPCS, goRest }); // para depurar
 
 // ---------- loop ----------
 const clock = new THREE.Clock();
@@ -949,7 +1002,7 @@ renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 1), t = clock.elapsedTime, now = performance.now();
   for (const [id, p] of people) {
     const idle = now - p.lastEvent;
-    if (idle > IDLE_MS && !p.leaving && !p.attention && !p.seat) goRest(p);
+    if (idle > IDLE_MS && !p.leaving && !p.attention && (!p.restKind || now > p.restUntil)) goRest(p);
     if (idle > GONE_MS && !p.leaving) { p.leaving = true; release(p); goTo(p, DOOR, 0, null); }
 
     // segue o caminho (pontos de passagem: porta de vidro, ponte)
@@ -976,10 +1029,18 @@ renderer.setAnimationLoop(() => {
       if (p.face != null) turn(p, p.face, .12);
       const atDesk = p.g.position.distanceTo(p.home) < .3;
       const atSeat = p.seat && p.g.position.distanceTo(p.seat.pos) < .3;
+      const atCoffee = atSeat && p.seat.kind === 'coffee';
+      if (atCoffee) p.buddy.holdMug(true);
       if (now > p.emoteUntil) {
         if (p.attention) emote(p, 'Wave');
-        else if ((atDesk && (p.typing || idle > 6000)) || atSeat) p.buddy.play('Sitting');
+        else if (atCoffee && now > p.nextSip) { emote(p, 'Drink'); p.nextSip = now + 4e3 + Math.random() * 4e3; } // gole
+        else if ((atDesk && (p.typing || idle > 6000)) || (atSeat && !atCoffee)) p.buddy.play('Sitting');
         else p.buddy.play('Idle');
+      }
+      // papo na copa, na reunião e na biblioteca
+      if (CHAT[p.restKind] && idle > IDLE_MS && now > p.nextChat && !p.bubble) {
+        say(p, (p.restKind === 'coffee' ? '☕ ' : '💬 ') + pickOne(CHAT[p.restKind]), 3200);
+        p.nextChat = now + 9e3 + Math.random() * 10e3;
       }
     }
     p.g.position.y = world.groundY(p.g.position.x, p.g.position.z);
