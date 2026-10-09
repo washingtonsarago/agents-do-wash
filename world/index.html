@@ -13,7 +13,8 @@
   #scene { position:fixed; inset:0; }
   #hud { position:fixed; top:16px; left:16px; display:flex; gap:10px; align-items:center; pointer-events:none; }
   #hud h1 { margin:0; font-size:18px; letter-spacing:-.02em; }
-  #home { pointer-events:auto; border:0; cursor:pointer; font:inherit; }
+  #home, #bossBtn { pointer-events:auto; border:0; cursor:pointer; font:inherit; }
+  #bossBtn.off { opacity:.45; }
   #skin { pointer-events:auto; border:0; cursor:pointer; font:inherit; color:var(--ink); appearance:none; padding-right:14px; }
   .pill { background:var(--panel); backdrop-filter: blur(8px); padding:6px 12px; border-radius:999px;
     box-shadow:0 2px 10px rgba(0,0,0,.06); font-variant-numeric: tabular-nums; }
@@ -90,6 +91,7 @@
   <span id="tokens" class="pill">0 tokens</span>
   <span id="botpill" class="pill" hidden></span>
   <select id="skin" class="pill" title="Visual dos agentes"></select>
+  <button id="bossBtn" class="pill" title="Liga/desliga o chefe">👔</button>
   <button id="home" class="pill" title="Visão geral">🏠</button>
 </div>
 <div id="side">
@@ -223,11 +225,15 @@ function heroFor(a) {
   }
   return heroOf.get(key);
 }
-const buddyFor = (a, color) => makeBuddy({ color, main: a.kind === 'main', seed: hash(a.id), skin, palette: heroFor(a) });
+// "proprio": cada agente usa o estilo e o herói que escolheu ao chegar (guardados no servidor)
+const buddyFor = (a, color) => skin === 'proprio'
+  ? makeBuddy({ color, main: a.kind === 'main', seed: hash(a.id), skin: a.identity?.style || 'classico', palette: a.identity?.palette })
+  : makeBuddy({ color, main: a.kind === 'main', seed: hash(a.id), skin, palette: heroFor(a) });
 
 // visual dos agentes (clássico, capas, armaduras), lembrado neste navegador
-let skin = 'classico';
-try { if (SKINS[localStorage.getItem('aw-skin')]) skin = localStorage.getItem('aw-skin'); } catch {}
+const SKIN_OPTIONS = { proprio: '🎲 Cada um no seu estilo', ...SKINS };
+let skin = 'proprio';
+try { if (SKIN_OPTIONS[localStorage.getItem('aw-skin')]) skin = localStorage.getItem('aw-skin'); } catch {}
 function setSkin(next) {
   skin = next;
   try { localStorage.setItem('aw-skin', next); } catch {}
@@ -333,7 +339,7 @@ function renderRoster() {
     el.className = 'agent';
     el.style.paddingLeft = 4 + depth * 16 + 'px';
     el.innerHTML = `${depth ? '<span class="branch">└</span>' : ''}<span class="dot" style="background:${p.color}"></span>
-      <span class="nm">${p.a.kind === 'main' ? '👑 ' : ''}${esc(p.a.name)} <small>${p.a.alias ? esc(p.a.autoName) + ' · ' : ''}${esc(p.a.task || '')}</small></span>
+      <span class="nm">${p.a.kind === 'main' ? '👑 ' : ''}${esc(p.a.name)} <small>${esc([p.a.autoName !== p.a.name && p.a.autoName, p.a.task].filter(Boolean).join(' · '))}</small></span>
       <span class="tk">${fmt(p.a.tokens || 0)}</span>`;
     el.onclick = () => { select(p); controls.target.copy(p.g.position); camera.zoom = 2.2; camera.updateProjectionMatrix(); };
     $('roster').appendChild(el);
@@ -418,7 +424,7 @@ function handle(ev) {
       act(p, ev.tool, ev.issue || ev.target);
       feed(p, `${ICON[STATION_FOR(ev.tool)]} <b>${esc(prettyTool(ev.tool))}</b> ${esc(ev.issue || ev.target || '')}`); break;
     case 'toolDone':
-      if (!ev.ok) { emote(p, 'No'); say(p, `❌ ${ev.tool} falhou`, 3000); feed(p, `❌ <b>${esc(ev.tool)}</b> falhou`); }
+      if (!ev.ok) { p.failedAt = now; emote(p, 'No'); say(p, `❌ ${ev.tool} falhou`, 3000); feed(p, `❌ <b>${esc(ev.tool)}</b> falhou`); }
       break;
     case 'say':
       say(p, '💬 ' + ev.text, 6000); feed(p, '💬 ' + esc(ev.text)); p.lastEvent = now; break;
@@ -442,6 +448,11 @@ function handle(ev) {
       if (!ev.ok) { emote(p, 'No'); say(p, '❌ não consegui responder', 4000); }
       if (selected === p) { setCStatus(ev.ok ? 'Respondeu.' : 'Falhou: ' + ev.text, !ev.ok); if (!ev.ok) termSys('Falhou: ' + ev.text, true); }
       break;
+    case 'intro': {
+      const look = { capa: '🦸', armadura: '🤖', classico: '🟡' }[ev.style] || '👋';
+      emote(p, 'Wave'); say(p, `👋 ${ev.text} ${look}`, 5000); p.lastEvent = now;
+      feed(p, `👋 <b>${esc(ev.text)}</b> ${look}`); break;
+    }
     case 'arrive':
       say(p, '👋 Cheguei!', 3000); feed(p, '👋 sessão iniciada'); p.lastEvent = now; break;
     case 'attention':
@@ -536,7 +547,7 @@ async function loadHistory(p) {
 
 function renderHeader(p) {
   $('cTo').innerHTML = (p.a.kind === 'main' ? '👑 ' : '') + esc(p.a.name) +
-    (p.a.alias ? ` <small>· ${esc(p.a.autoName)}</small>` : '') +
+    (p.a.autoName && p.a.name !== p.a.autoName ? ` <small>· ${esc(p.a.autoName)}</small>` : '') +
     (p.a.task ? ` <small>· ${esc(p.a.task)}</small>` : '') + ` <small>· ${esc(String(p.a.id).slice(0, 8))}</small>`;
 }
 
@@ -556,7 +567,7 @@ function startRename() {
     input.replaceWith(b); renderHeader(p);
     if (!save) return;
     const name = input.value.trim();
-    if (name === (p.a.alias || '')) return;
+    if (name === (p.a.alias || '') || (!p.a.alias && name === p.a.name)) return; // nada mudou
     if (DEMO) { // sem servidor: renomeia só nesta página
       p.a.autoName = p.a.autoName || p.a.name;
       onEvent({ kind: 'agent', agent: { ...p.a, alias: name || null, name: name || p.a.autoName } });
@@ -691,7 +702,7 @@ renderer.domElement.addEventListener('pointerup', e => {
   }
 });
 
-$('skin').innerHTML = Object.entries(SKINS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+$('skin').innerHTML = Object.entries(SKIN_OPTIONS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
 $('skin').value = skin;
 $('skin').onchange = e => setSkin(e.target.value);
 
@@ -712,7 +723,18 @@ function startDemo() {
   const parentOf = { 'security-specialist': 'arquiteto-sr', 'cypress-qa-analyst': 'go-senior-engineer' }; // aninhados
   const tools = [['Read', 'handler.go'], ['Grep', 'func New'], ['Edit', 'orders.go'], ['Bash', 'go test ./...'],
     ['WebSearch', 'EKS pod OOMKilled'], ['mcp__claude_ai_Atlassian__getJiraIssue', 'ABC-123'], ['Write', 'main.tf'], ['Glob', '**/*.ts']];
-  onEvent({ kind: 'agent', agent: { id: 'main', kind: 'main', type: 'main', name: 'repo', tokens: 0 } });
+  // no demo não há servidor: cada agente escolhe nome e estilo aqui mesmo
+  const DEMO_FIRST = ['Bia', 'Zeca', 'Tati', 'Nico', 'Malu', 'Otto', 'Lia', 'Guga', 'Mel', 'Caio'], DEMO_NICK = ['Byte', 'Kernel', 'Turbo', 'Pixel', 'Cache', 'Commit', 'Deploy', 'Lambda', 'Patch', 'Proxy'];
+  const STYLES = ['classico', 'capa', 'armadura'];
+  let demoN = 0;
+  const demoAgent = base => {
+    const style = STYLES[Math.floor(Math.random() * 3)];
+    const name = `${DEMO_FIRST[demoN % 10]} ${DEMO_NICK[(demoN * 3 + 1) % 10]}`; demoN++;
+    const agent = { ...base, autoName: base.name, name, identity: { name, style, palette: Math.floor(Math.random() * 6) } };
+    onEvent({ kind: 'agent', agent });
+    handle({ id: agent.id, kind: 'intro', text: `Oi! Sou ${name}`, style });
+  };
+  demoAgent({ id: 'main', kind: 'main', type: 'main', name: 'repo', tokens: 0 });
   // integrações de mentira, para ver o quadro e a TV funcionando
   const card = (key, type, summary, cat, status) => ({ key, type, summary, cat, status, url: 'https://example.atlassian.net/browse/' + key });
   const demoCards = [card('DEMO-51', 'Bug', 'Formulário de cadastro envia dados antes da validação', 'indeterminate', 'Em andamento'),
@@ -748,7 +770,7 @@ function startDemo() {
       const t = types[n++];
       const parent = people.has(parentOf[t]) ? parentOf[t] : 'main';
       handle({ id: parent, kind: 'tool', tool: 'Agent', target: t });
-      setTimeout(() => onEvent({ kind: 'agent', agent: { id: t, kind: 'sub', type: t, name: t, task: 'tarefa demo', parent, tokens: 0 } }), 1500);
+      setTimeout(() => demoAgent({ id: t, kind: 'sub', type: t, name: t, task: 'tarefa demo', parent, tokens: 0 }), 1500);
     }
     const ids = [...people.keys()];
     const id = ids[Math.floor(Math.random() * ids.length)];
@@ -767,6 +789,122 @@ function startDemo() {
   }, 700);
 }
 const now = () => performance.now();
+
+// ---------- o chefe ----------
+// Personagem só visual (não é sessão do Claude, não gasta token): patrulha o escritório e dá bronca,
+// de preferência em quem está no chafariz ou acabou de errar.
+const SCOLD = {
+  rest: ['Ô {n}, chafariz é na hora do almoço!', '{n}, o deploy não vai se fazer sozinho!', 'Levanta daí, {n}! Tem PR esperando.', '{n}, o descanso já acabou faz tempo!'],
+  fail: ['{n}, esse teste quebrou de novo?', 'Quem subiu esse bug? Hein, {n}?', '{n}, roda o lint antes de commitar!', 'Vermelho no CI, {n}? Bora consertar!'],
+  work: ['Bora, {n}! Cadê os testes?', '{n}, isso entra na sprint?', 'Commit pequeno, {n}! Commit pequeno!', '{n}, documentou isso?', 'Prazo é sexta, {n}!', '{n}, cadê o README?'],
+};
+const REPLIES = ['Já vou, chefe!', 'Tô nisso!', 'Foi o estagiário!', 'Só mais 5 minutinhos…', 'Sim, senhor!', 'Já tá no PR!', 'Juro que roda na minha máquina!'];
+const MUTTER = ['Hmm…', 'Tudo sob controle?', 'Cadê o café?', 'Quem mexeu na produção?'];
+const pickOne = list => list[Math.floor(Math.random() * list.length)];
+
+let bossOn = true;
+try { bossOn = localStorage.getItem('aw-boss') !== 'off'; } catch {}
+const boss = (() => {
+  const g = new THREE.Group();
+  const buddy = makeBuddy({ color: '#bcd4ef', skin: 'chefe' });
+  g.add(buddy.root);
+  const tag = label('👔 Chefe', { size: 22, bg: 'rgba(43,42,51,.85)', color: '#fff' });
+  tag.position.y = 4.9; g.add(tag);
+  g.position.copy(DOOR);
+  scene.add(g);
+  return { g, buddy, path: [], target: DOOR.clone(), state: 'pause', until: performance.now() + 4000,
+    victim: null, nextScold: performance.now() + 8000, bubble: null, bubbleUntil: 0, moving: false };
+})();
+function bossSay(text, ms = 3500) {
+  if (boss.bubble) boss.g.remove(boss.bubble);
+  boss.bubble = label(text, { size: 22, maxW: 380, bg: 'rgba(255,248,225,.97)' });
+  boss.bubble.position.y = 6; boss.g.add(boss.bubble);
+  boss.bubbleUntil = performance.now() + ms;
+}
+function bossGo(pos) { boss.target.copy(pos); boss.path = world.route(boss.g.position, pos); }
+function patrolPoint() {
+  if (Math.random() < .45) return pickOne(desks).home.clone().add(new THREE.Vector3(1.6, 0, 0));
+  return world.standAt(pickOne(['library', 'terminal', 'jira', 'meeting', 'mail', 'web', 'slack']), 4 + Math.floor(Math.random() * 3));
+}
+const recentlyFailed = (p, now) => p.failedAt && now - p.failedAt < 90e3;
+function pickVictim(now) {
+  const list = [];
+  for (const p of people.values()) {
+    if (p.leaving) continue;
+    const w = p.seat || recentlyFailed(p, now) ? 4 : p.g.position.x < 30 ? 1 : 0; // chafariz e erro têm prioridade
+    for (let i = 0; i < w; i++) list.push(p);
+  }
+  return list.length ? pickOne(list) : null;
+}
+function scold(p, now) {
+  const kind = p.seat ? 'rest' : recentlyFailed(p, now) ? 'fail' : 'work';
+  const phrase = pickOne(SCOLD[kind]).replace('{n}', p.a.name.split(' ')[0]);
+  boss.buddy.emote('Point');
+  bossSay('👔 ' + phrase);
+  feedSys(`👔 <b>Chefe</b> para <b>${esc(p.a.name)}</b>: “${esc(phrase)}”`, '#7aa0d4');
+  setTimeout(() => { // susto e resposta
+    if (!people.has(p.a.id)) return;
+    emote(p, 'Jump'); say(p, '😰 ' + pickOne(REPLIES), 3000);
+    if (p.seat) { release(p); p.lastEvent = performance.now(); p.typing = true; goTo(p, p.home, p.desk.face, null); }
+    p.failedAt = 0;
+  }, 900);
+}
+const _bossTo = new THREE.Vector3();
+function updateBoss(dt, t, now) {
+  boss.g.visible = bossOn;
+  if (!bossOn) return;
+  if (boss.victim && boss.state === 'walk') { // segue a vítima se ela se mexer
+    if (!people.has(boss.victim.a.id)) { boss.victim = null; boss.until = now; }
+    else {
+      const vp = boss.victim.g.position;
+      if (vp.distanceTo(boss.target) > 2.6) {
+        const dir = boss.g.position.clone().sub(vp).setY(0).normalize();
+        bossGo(vp.clone().addScaledVector(dir, 1.9));
+      }
+    }
+  }
+  let wp = boss.path[0];
+  while (wp && Math.hypot(wp.x - boss.g.position.x, wp.z - boss.g.position.z) < .15) { boss.path.shift(); wp = boss.path[0]; }
+  if (wp) {
+    _bossTo.set(wp.x - boss.g.position.x, 0, wp.z - boss.g.position.z);
+    const dist = _bossTo.length(), ang = Math.atan2(_bossTo.x, _bossTo.z);
+    boss.g.position.addScaledVector(_bossTo.normalize(), Math.min(dist, 4.2 * dt)); // passo pesado
+    boss.g.rotation.y += Math.atan2(Math.sin(ang - boss.g.rotation.y), Math.cos(ang - boss.g.rotation.y)) * .15;
+    boss.buddy.play('Walking'); boss.moving = true;
+  } else {
+    if (boss.moving) { // chegou
+      boss.moving = false;
+      if (boss.victim && people.has(boss.victim.a.id)) {
+        const vp = boss.victim.g.position;
+        boss.g.rotation.y = Math.atan2(vp.x - boss.g.position.x, vp.z - boss.g.position.z);
+        scold(boss.victim, now);
+        boss.state = 'scold'; boss.until = now + 3200; boss.nextScold = now + 12e3 + Math.random() * 10e3;
+      } else {
+        boss.state = 'pause'; boss.until = now + 1800 + Math.random() * 2500;
+        if (Math.random() < .25) bossSay('👔 ' + pickOne(MUTTER), 2500);
+      }
+    }
+    if (!boss.buddy.busy) boss.buddy.play('Idle');
+    if (now > boss.until) {
+      boss.victim = now > boss.nextScold ? pickVictim(now) : null;
+      if (boss.victim) {
+        const dir = boss.g.position.clone().sub(boss.victim.g.position).setY(0).normalize();
+        bossGo(boss.victim.g.position.clone().addScaledVector(dir, 1.9));
+      } else bossGo(patrolPoint());
+      boss.state = 'walk';
+    }
+  }
+  boss.g.position.y = world.groundY(boss.g.position.x, boss.g.position.z);
+  boss.buddy.update(dt, t);
+  if (boss.bubble && now > boss.bubbleUntil) { boss.g.remove(boss.bubble); boss.bubble = null; }
+}
+if (window.__agentWorld) Object.assign(window.__agentWorld, { boss, updateBoss }); // para depurar
+$('bossBtn').classList.toggle('off', !bossOn);
+$('bossBtn').onclick = () => {
+  bossOn = !bossOn;
+  $('bossBtn').classList.toggle('off', !bossOn);
+  try { localStorage.setItem('aw-boss', bossOn ? 'on' : 'off'); } catch {}
+};
 
 // ---------- loop ----------
 const clock = new THREE.Clock();
@@ -825,6 +963,7 @@ renderer.setAnimationLoop(() => {
     if (!people.has(selected.a.id)) deselect();
     else { ring.position.set(selected.g.position.x, selected.g.position.y + .05, selected.g.position.z); ring.scale.setScalar(1 + Math.sin(t * 4) * .06); }
   }
+  updateBoss(dt, t, now);
   world.update(t, dt);
   if (camAnim) {
     camAnim.t = Math.min(1, camAnim.t + dt / .8);

@@ -89,10 +89,25 @@ Clique num bonequinho (ou no nome dele na lista) para abrir o terminal da sessã
 (`GET /history`, até as últimas 400 entradas) e, ao vivo, cada prompt `❯`, resposta `⏺`, ferramenta `⏺ Nome(args)`
 e saída `⎿` (saídas longas começam recolhidas; clique para expandir). Esc fecha.
 
+## Identidade de cada agente
+
+Quando um agente aparece pela primeira vez, ele **escolhe um nome** (ex.: "Bia Byte", "Zeca Kernel") e **um estilo de roupa**
+(clássico, capa ou armadura, com um herói sorteado) e se apresenta num balão. A escolha fica salva no servidor em
+`~/.config/agents-do-wash/identities.json`, então recarregar a página ou reiniciar o observador mantém nome e roupa
+(agentes que não aparecem há 14 dias são esquecidos). O papel dele (projeto ou tipo) aparece em letra miúda ao lado do nome.
+No seletor do topo, **🎲 Cada um no seu estilo** usa a roupa escolhida por cada agente; as outras opções forçam um visual para todos.
+
+## O chefe 👔
+
+Um personagem mais forte, de camisa social azul-clara, patrulha o escritório e dá broncas bem-humoradas, de preferência em
+quem está descansando no chafariz ou acabou de errar ("Ô Bia, chafariz é na hora do almoço!"). Quem leva bronca leva um susto,
+responde ("Já vou, chefe!") e, se estava no chafariz, volta para a mesa. É só visual: não é uma sessão do Claude e não gasta token.
+O botão 👔 no topo liga e desliga.
+
 ## Dar nomes aos agentes
 
 No terminal de qualquer agente, clique em ✏️ ao lado do nome, digite e aperte Enter (vazio volta ao nome original).
-No Slack: `renomear 2 Time de Dados`. O apelido vale no site, no Slack e no feed, aparece em cima do bonequinho,
+No Slack: `renomear 2 Time de Dados`. O apelido (que vale mais que o nome escolhido pelo agente) vale no site, no Slack e no feed, aparece em cima do bonequinho,
 e fica salvo em `~/.config/agents-do-wash/aliases.json`, sobrevivendo a reinícios. A lista de moradores mostra
 o nome original em letra miúda ao lado do apelido.
 

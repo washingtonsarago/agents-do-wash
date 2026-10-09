@@ -14,7 +14,7 @@ function add(parent, geo, m, x = 0, y = 0, z = 0) {
   const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; parent.add(o); return o;
 }
 
-export const EMOTES = { Wave: 1.6, Jump: .8, Yes: 1, No: 1, Punch: 1, ThumbsUp: 1.2, Dance: 2.4 };
+export const EMOTES = { Wave: 1.6, Jump: .8, Yes: 1, No: 1, Punch: 1, ThumbsUp: 1.2, Dance: 2.4, Point: 2.2 };
 
 export const SKINS = {
   classico: '🟡 Clássico',
@@ -64,9 +64,9 @@ export function makeBuddy({ color, main = false, seed = 1, skin = 'classico', pa
   const eyes = [];
   let cape = null;
 
-  const limb = (x, y, len, m, hand) => {
+  const limb = (x, y, len, m, hand, r = .1) => {
     const pivot = new THREE.Group(); pivot.position.set(x, y, 0); body.add(pivot);
-    add(pivot, new THREE.CapsuleGeometry(.1, len, 4, 8), m, 0, -len / 2, 0);
+    add(pivot, new THREE.CapsuleGeometry(r, len, 4, 8), m, 0, -len / 2, 0);
     add(pivot, hand.geo, hand.mat, hand.x || 0, -len - .08, hand.z || 0);
     return pivot;
   };
@@ -79,8 +79,8 @@ export function makeBuddy({ color, main = false, seed = 1, skin = 'classico', pa
     }
   };
   // olhos que piscam (clássico e capa)
-  const blinkEye = (ex, y, big, iris = true) => {
-    const eye = new THREE.Group(); eye.position.set(ex, y, R - .08); body.add(eye);
+  const blinkEye = (ex, y, big, iris = true, z = R - .08) => {
+    const eye = new THREE.Group(); eye.position.set(ex, y, z); body.add(eye);
     add(eye, new THREE.SphereGeometry(.22 * big, 16, 12), mat('#ffffff', { roughness: .2 })).scale.z = .55;
     if (iris) {
       add(eye, new THREE.CircleGeometry(.1 * big, 16), mat('#7a4b2a'), 0, 0, .125 * big);
@@ -158,6 +158,41 @@ export function makeBuddy({ color, main = false, seed = 1, skin = 'classico', pa
     armL = limb(-R - .05, 1.9, .55, limbM, gauntlet);
     armR = limb(R + .05, 1.9, .55, limbM, gauntlet);
     legs(limbM, new THREE.BoxGeometry(.34, .22, .46), plateM);
+  } else if (skin === 'chefe') {
+    // ---------- o chefe: musculoso (tronco em V), cabelo castanho curto, camisa social azul-clara ----------
+    const skinM = mat('#efc3a0'), shirt = mat('#bcd4ef', { roughness: .7 }), pants = mat('#2f3440'), hairM = mat('#4b3527');
+    // tronco em V: largo nos ombros, fino na cintura, achatado na frente
+    const TOP = .98, BOT = .6, Y0 = 1.15, H = 1.2, DEPTH = .72;
+    add(body, new THREE.CylinderGeometry(TOP, BOT, H, 28), shirt, 0, Y0 + H / 2, 0).scale.z = DEPTH;
+    add(body, new THREE.SphereGeometry(TOP, 28, 12, 0, Math.PI * 2, 0, Math.PI / 2), shirt, 0, Y0 + H - .02, 0).scale.set(1, .28, DEPTH); // topo dos ombros
+    for (const sd of [-1, 1]) {
+      add(body, new THREE.SphereGeometry(.4, 18, 14), shirt, sd * .36, Y0 + H - .3, .38).scale.set(1, .78, .62); // peitoral
+      add(body, new THREE.SphereGeometry(.38, 18, 14), shirt, sd * .9, Y0 + H - .1, 0); // deltoide
+    }
+    const frontZ = y => (BOT + (y - Y0) / H * (TOP - BOT)) * DEPTH + .01;
+    for (let i = 0; i < 4; i++) { const y = Y0 + .2 + i * .22; add(body, new THREE.SphereGeometry(.032, 8, 6), mat('#eef3f9'), 0, y, frontZ(y)); } // botões
+    add(body, new THREE.TorusGeometry(BOT + .02, .07, 8, 28), mat('#3b2a1f'), 0, Y0 + .05, 0).scale.set(1, 1, DEPTH); // cinto
+    add(body, new THREE.CylinderGeometry(BOT + .01, .5, .45, 20), pants, 0, Y0 - .2, 0).scale.z = .85; // quadril
+    // pescoço e cabeça (acima do tronco)
+    const HY = Y0 + H + .55;
+    add(body, new THREE.CylinderGeometry(.24, .3, .38, 16), skinM, 0, Y0 + H + .12, 0);
+    for (const sd of [-1, 1]) { const c = add(body, new THREE.BoxGeometry(.24, .05, .2), mat('#d6e4f6'), sd * .16, Y0 + H + .02, .3); c.rotation.set(-.5, sd * .45, sd * -.3); } // colarinho
+    add(body, new THREE.SphereGeometry(.5, 24, 18), skinM, 0, HY, 0).scale.set(.9, 1.08, .95);
+    add(body, new THREE.SphereGeometry(.515, 24, 12, 0, Math.PI * 2, 0, Math.PI * .36), hairM, 0, HY + .06, -.03).scale.set(.92, 1.08, .97); // cabelo curto
+    const quiff = add(body, new THREE.BoxGeometry(.46, .12, .26), hairM, 0, HY + .5, .17); quiff.rotation.x = -.35; // topete
+    for (const sd of [-1, 1]) {
+      add(body, new THREE.SphereGeometry(.09, 10, 8), skinM, sd * .46, HY, 0); // orelhas
+      const brow = add(body, new THREE.BoxGeometry(.15, .035, .04), hairM, sd * .16, HY + .17, .44); brow.rotation.z = sd * -.12; // sobrancelhas
+    }
+    for (const ex of [-.16, .16]) blinkEye(ex, HY + .05, .36, true, .4);
+    const grin = add(body, new THREE.TorusGeometry(.14, .03, 6, 16, Math.PI), mat('#ffffff'), 0, HY - .17, .43); grin.rotation.z = Math.PI; // sorriso largo
+    // braços fortes
+    const hand = { geo: new THREE.SphereGeometry(.19, 12, 10), mat: skinM };
+    armL = limb(-1.12, Y0 + H - .12, .66, shirt, hand, .21);
+    armR = limb(1.12, Y0 + H - .12, .66, shirt, hand, .21);
+    legs(pants, new THREE.BoxGeometry(.34, .18, .48), mat('#5a3a24'));
+    for (const lg of [legL, legR]) lg.scale.set(1.35, 1, 1.35);
+    root.scale.setScalar(1.08);
   } else {
     // ---------- clássico: cápsula amarela de macacão ----------
     const overall = mat(color);
@@ -234,6 +269,7 @@ export function makeBuddy({ color, main = false, seed = 1, skin = 'classico', pa
         case 'No': tgt.bry = Math.sin(k * Math.PI * 6) * .45 * env; tgt.aLz = .5; tgt.aRz = -.5; break;
         case 'Punch': tgt.aRx = Math.sin(k * Math.PI * 4) > 0 ? -1.6 : -.3; tgt.aLx = Math.sin(k * Math.PI * 4) > 0 ? -.3 : -1.6; tgt.bry = Math.sin(k * Math.PI * 4) * .2; break;
         case 'ThumbsUp': tgt.aRz = -1.9; tgt.aRx = -.6; tgt.by += env * .3; break;
+        case 'Point': tgt.aRx = -1.45; tgt.aRz = -.1 + Math.sin(t * 12) * .14; tgt.bx = -.06; tgt.bry = .12; break; // bronca: dedo em riste
         case 'Dance': tgt.brz = Math.sin(t * 9) * .25; tgt.by += Math.abs(Math.sin(t * 9)) * .35; tgt.aLz = 2 + Math.sin(t * 9) * .5; tgt.aRz = -2 - Math.cos(t * 9) * .5; break;
       }
       if (k >= 1) emote = null;

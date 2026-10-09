@@ -30,7 +30,8 @@ const one = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return 
 
 // uma sessão com o contexto do que está acontecendo nela
 function describe(s, i) {
-  const lines = [`${i + 1}. 👑 *${escape(s.name)}* \`${s.id.slice(0, 8)}\` · ${STATUS[s.status] || s.status} · ativa ${ago(s.lastTs)}`];
+  const role = s.role && s.role !== s.name ? ` _(${escape(s.role)})_` : '';
+  const lines = [`${i + 1}. 👑 *${escape(s.name)}*${role} \`${s.id.slice(0, 8)}\` · ${STATUS[s.status] || s.status} · ativa ${ago(s.lastTs)}`];
   if (s.cwd) lines.push(`      📁 \`${escape(s.cwd)}\``);
   if (s.status === 'waiting' && s.waiting) lines.push(`      ❗ ${escape(one(s.waiting.text, 120))}`);
   if (s.asked) lines.push(`      📋 pedido ${ago(s.asked.ts)}: _${escape(one(s.asked.text, 140))}_`);
@@ -40,7 +41,7 @@ function describe(s, i) {
     lines.push(`      👥 subagents (${s.subs.length}):`);
     for (const sub of s.subs.slice(0, 6)) {
       const doing = sub.action ? ` · ${escape(prettyTool(sub.action.tool))}${sub.action.target ? ' ' + escape(one(sub.action.target, 50)) : ''}` : '';
-      lines.push(`            • ${escape(sub.name)}${sub.task ? ' — ' + escape(one(sub.task, 60)) : ''} · ${(STATUS[sub.status] || sub.status).split(' ')[0]}${doing}`);
+      lines.push(`            • ${escape(sub.name)}${sub.role && sub.role !== sub.name ? ' (' + escape(sub.role) + ')' : ''}${sub.task ? ' — ' + escape(one(sub.task, 60)) : ''} · ${(STATUS[sub.status] || sub.status).split(' ')[0]}${doing}`);
     }
     if (s.subs.length > 6) lines.push(`            … e mais ${s.subs.length - 6}`);
   }
@@ -135,7 +136,8 @@ module.exports = function slackBot({ listSessions, sendToAgent, emit, historyOf,
       const id = (lastList.length ? lastList : sessions.map(s => s.id))[Number(w) - 1];
       return sessions.find(s => s.id === id) || null;
     }
-    return sessions.find(s => s.name.toLowerCase() === w) || (w.length >= 6 ? sessions.find(s => s.id.startsWith(w)) : null) || null;
+    return sessions.find(s => s.name.toLowerCase() === w) || sessions.find(s => (s.role || '').toLowerCase() === w)
+      || (w.length >= 6 ? sessions.find(s => s.id.startsWith(w)) : null) || null;
   }
 
   function handle(cfg, e) {

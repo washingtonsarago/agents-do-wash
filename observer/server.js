@@ -27,11 +27,53 @@ const agents = new Map(); // id -> { id, kind, type, name, parent, project, toke
 const ALIASES_FILE = path.join(os.homedir(), '.config', 'agents-do-wash', 'aliases.json');
 let aliases = {};
 try { aliases = JSON.parse(fs.readFileSync(ALIASES_FILE, 'utf8')); } catch {}
-// nome automático (projeto ou tipo do agente); o apelido, se houver, tem prioridade
+// identidade que cada agente escolhe ao chegar (nome + estilo de roupa); guardada para sobreviver a refresh/reinício
+const IDENTITIES_FILE = path.join(os.homedir(), '.config', 'agents-do-wash', 'identities.json');
+let identities = {};
+try { identities = JSON.parse(fs.readFileSync(IDENTITIES_FILE, 'utf8')); } catch {}
+const FIRST = ['Ana', 'Bia', 'Caio', 'Duda', 'Enzo', 'Fefa', 'Gabi', 'Hugo', 'Iara', 'Juca', 'Kiko', 'Lia', 'Malu', 'Nina', 'Otto',
+  'Pipo', 'Rafa', 'Sami', 'Tati', 'Vivi', 'Zeca', 'Lulu', 'Tião', 'Dora', 'Nico', 'Bento', 'Cacá', 'Mel', 'Teca', 'Guga'];
+const NICK = ['Byte', 'Kernel', 'Lambda', 'Turbo', 'Pixel', 'Cache', 'Debug', 'Commit', 'Deploy', 'Script', 'Proxy', 'Cluster',
+  'Patch', 'Sprint', 'Query', 'Token', 'Stack', 'Thread', 'Cron', 'Merge', 'Lint', 'Hash', 'Async', 'Buffer', 'Regex'];
+const STYLES = { classico: 1, capa: 6, armadura: 6 }; // estilo -> quantos heróis (paletas) existem
+const pick = list => list[Math.floor(Math.random() * list.length)];
+let identitySaveTimer = null;
+function saveIdentities() {
+  clearTimeout(identitySaveTimer);
+  identitySaveTimer = setTimeout(() => {
+    const cutoff = Date.now() - 14 * 86400e3; // esquece agentes que não aparecem há 14 dias
+    for (const [id, v] of Object.entries(identities)) if ((v.seen || 0) < cutoff) delete identities[id];
+    try {
+      fs.mkdirSync(path.dirname(IDENTITIES_FILE), { recursive: true });
+      fs.writeFileSync(IDENTITIES_FILE, JSON.stringify(identities, null, 1) + '\n', { mode: 0o600 });
+    } catch (e) { console.error('identidades:', e.message); }
+  }, 1000);
+}
+// devolve true se o agente acabou de escolher a identidade (para ele se apresentar)
+function ensureIdentity(a) {
+  let id = identities[a.id], created = false;
+  if (!id) {
+    const taken = new Set(Object.values(identities).map(v => v.name));
+    let name = `${pick(FIRST)} ${pick(NICK)}`;
+    for (let i = 0; i < 50 && taken.has(name); i++) name = `${pick(FIRST)} ${pick(NICK)}`;
+    const style = pick(Object.keys(STYLES));
+    id = identities[a.id] = { name, style, palette: Math.floor(Math.random() * STYLES[style]) };
+    created = true;
+  }
+  id.seen = Date.now();
+  a.identity = { name: id.name, style: id.style, palette: id.palette };
+  saveIdentities();
+  return created;
+}
+
+// nome exibido: apelido dado por você > nome que o agente escolheu > automático (projeto ou tipo)
 function setAutoName(a, n) {
   a.autoName = n;
   a.alias = aliases[a.id] || null;
-  a.name = a.alias || n;
+  a.name = a.alias || a.identity?.name || n;
+}
+function introduce(a, created) {
+  if (created) broadcast({ id: a.id, ts: Date.now(), kind: 'intro', text: `Oi! Sou ${a.identity.name}`, style: a.identity.style });
 }
 const seenMsgs = new Set();
 const seenTools = new Map(); // tool_use_id -> agentId (dedupe hook × JSONL)
@@ -141,9 +183,11 @@ function registerAgent(file) {
   info.lastTs = Date.now();
   const cwd = readCwd(file);
   if (cwd) { info.cwd = cwd; info.project = path.basename(cwd); if (info.kind === 'main') info.name = info.project; }
+  const created = ensureIdentity(info);
   setAutoName(info, info.name);
   agents.set(info.id, info);
   broadcast({ kind: 'agent', agent: info });
+  if (!firstScan) introduce(info, created);
   return info.id;
 }
 
@@ -332,9 +376,11 @@ function syntheticAgent(id, kind, type, h) {
   const project = h.cwd ? path.basename(h.cwd) : undefined;
   const info = { id, kind, type, name: kind === 'main' ? project || 'Claude' : type, task: '',
     parent: kind === 'sub' ? h.session_id : null, project, cwd: h.cwd, tokens: 0, lastTs: Date.now() };
+  const created = ensureIdentity(info);
   setAutoName(info, info.name);
   agents.set(id, info);
   broadcast({ kind: 'agent', agent: info });
+  introduce(info, created);
   return id;
 }
 
@@ -619,7 +665,7 @@ function sessionsInfo() {
     if (c.status === 'working' && now - a.lastTs < 90e3) return 'working';
     return 'idle';
   };
-  const view = a => ({ id: a.id, name: a.name, type: a.type, task: a.task || '', lastTs: a.lastTs, running: running.has(a.id),
+  const view = a => ({ id: a.id, name: a.name, role: a.autoName, type: a.type, task: a.task || '', lastTs: a.lastTs, running: running.has(a.id),
     status: statusOf(a), cwd: a.cwd ? a.cwd.replace(home, '~') : '', tokens: a.tokens || 0, ...(a.ctx || {}) });
   const active = [...agents.values()].filter(a => now - a.lastTs < ACTIVE_MS);
   for (const a of active) seedContext(a);
