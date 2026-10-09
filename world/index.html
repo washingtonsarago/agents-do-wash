@@ -49,6 +49,8 @@
   #composer .who .dot { width:10px; height:10px; border-radius:50%; }
   #composer .who b { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   #composer .who small { color:var(--t-dim); font-weight:400; }
+  #cRenameInput { flex:1; min-width:0; background:rgba(255,255,255,.08); color:var(--t-fg); border:1px solid rgba(255,255,255,.25);
+    border-radius:6px; padding:3px 8px; font: 600 12px -apple-system, system-ui, sans-serif; }
   #cSub { padding:6px 12px; border-bottom:1px solid var(--t-line); }
   #cSub a { color:#f0a27f; }
   #termLog { flex:1; overflow:auto; padding:10px 12px; display:flex; flex-direction:column; gap:6px; }
@@ -91,11 +93,11 @@
   <button id="home" class="pill" title="Visão geral">🏠</button>
 </div>
 <div id="side">
-  <div class="card"><h2>Moradores <span class="hint" style="text-transform:none;letter-spacing:0">· clique para falar</span></h2><div id="roster"></div></div>
+  <div class="card"><h2>Moradores <span class="hint" style="text-transform:none;letter-spacing:0">· clique para falar ou renomear ✏️</span></h2><div id="roster"></div></div>
   <div class="card" id="feedCard"><h2>Ao vivo</h2><div id="feed"></div></div>
 </div>
 <div id="composer" hidden>
-  <div class="who"><span class="dot" id="cDot"></span><b id="cTo"></b><button class="ghost" id="cClose" title="Fechar (Esc)">✕</button></div>
+  <div class="who"><span class="dot" id="cDot"></span><b id="cTo"></b><button class="ghost" id="cRename" title="Renomear este agente">✏️</button><button class="ghost" id="cClose" title="Fechar (Esc)">✕</button></div>
   <div id="cSub" class="hint" hidden></div>
   <div id="termLog"></div>
   <div class="row"><span class="ps">❯</span>
@@ -236,6 +238,12 @@ function setSkin(next) {
   }
 }
 
+function nameLabel(a) {
+  const s = label(a.kind === 'main' ? `👑 ${a.name}` : a.name, { size: 22 });
+  s.position.y = 4.2;
+  return s;
+}
+
 const people = new Map();
 const known = new Map(); // id -> info do agente (para recriar quem saiu e voltou)
 function makePerson(a) {
@@ -243,8 +251,8 @@ function makePerson(a) {
   const g = new THREE.Group();
   const buddy = buddyFor(a, color);
   g.add(buddy.root);
-  const name = label(a.kind === 'main' ? `👑 ${a.name}` : a.name, { size: 22 });
-  name.position.y = 4.2; g.add(name);
+  const name = nameLabel(a);
+  g.add(name);
 
   const desk = desks.find(d => !d.owner) || desks[people.size % desks.length];
   desk.owner = a.id;
@@ -325,7 +333,7 @@ function renderRoster() {
     el.className = 'agent';
     el.style.paddingLeft = 4 + depth * 16 + 'px';
     el.innerHTML = `${depth ? '<span class="branch">└</span>' : ''}<span class="dot" style="background:${p.color}"></span>
-      <span class="nm">${p.a.kind === 'main' ? '👑 ' : ''}${esc(p.a.name)} <small>${esc(p.a.task || '')}</small></span>
+      <span class="nm">${p.a.kind === 'main' ? '👑 ' : ''}${esc(p.a.name)} <small>${p.a.alias ? esc(p.a.autoName) + ' · ' : ''}${esc(p.a.task || '')}</small></span>
       <span class="tk">${fmt(p.a.tokens || 0)}</span>`;
     el.onclick = () => { select(p); controls.target.copy(p.g.position); camera.zoom = 2.2; camera.updateProjectionMatrix(); };
     $('roster').appendChild(el);
@@ -384,7 +392,14 @@ function onEvent(ev) {
   if (ev.kind === 'agent') {
     known.set(ev.agent.id, ev.agent);
     const p = people.get(ev.agent.id);
-    if (p) Object.assign(p.a, ev.agent); else makePerson(ev.agent);
+    if (p) {
+      const renamed = p.a.name !== ev.agent.name;
+      Object.assign(p.a, ev.agent);
+      if (renamed) {
+        p.g.remove(p.name); p.name = nameLabel(p.a); p.g.add(p.name);
+        if (selected === p) renderHeader(p);
+      }
+    } else makePerson(ev.agent);
     renderRoster(); return;
   }
   // eventos de replay entram numa fila para não chegarem todos de uma vez
@@ -519,14 +534,56 @@ async function loadHistory(p) {
   } catch { termSys('Não consegui carregar o histórico.', true); }
 }
 
+function renderHeader(p) {
+  $('cTo').innerHTML = (p.a.kind === 'main' ? '👑 ' : '') + esc(p.a.name) +
+    (p.a.alias ? ` <small>· ${esc(p.a.autoName)}</small>` : '') +
+    (p.a.task ? ` <small>· ${esc(p.a.task)}</small>` : '') + ` <small>· ${esc(String(p.a.id).slice(0, 8))}</small>`;
+}
+
+// renomear: o nome vira um campo; Enter salva, Esc cancela, vazio volta ao nome original
+function startRename() {
+  const p = selected;
+  if (!p || $('cRenameInput')) return;
+  const input = document.createElement('input');
+  input.id = 'cRenameInput'; input.maxLength = 40;
+  input.value = p.a.alias || p.a.name;
+  input.placeholder = `nome (vazio volta para "${p.a.autoName || p.a.name}")`;
+  $('cTo').replaceWith(input);
+  input.focus(); input.select();
+  const finish = async save => {
+    if (!input.isConnected) return;
+    const b = document.createElement('b'); b.id = 'cTo';
+    input.replaceWith(b); renderHeader(p);
+    if (!save) return;
+    const name = input.value.trim();
+    if (name === (p.a.alias || '')) return;
+    if (DEMO) { // sem servidor: renomeia só nesta página
+      p.a.autoName = p.a.autoName || p.a.name;
+      onEvent({ kind: 'agent', agent: { ...p.a, alias: name || null, name: name || p.a.autoName } });
+      renderRoster(); return;
+    }
+    try {
+      const r = await fetch('/rename', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-AW-Token': TOKEN },
+        body: JSON.stringify({ agentId: p.a.id, name }) });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) setCStatus(body.error || `Erro ${r.status}`, true);
+      else setCStatus(name ? `Agora se chama "${body.name}" (no site e no Slack).` : 'Voltou ao nome original.');
+    } catch { setCStatus('Sem conexão com o observador.', true); }
+  };
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); }
+  });
+  input.addEventListener('blur', () => finish(true));
+}
+
 function select(p) {
   const same = selected === p;
   selected = p;
   ring.material.color.set(p.color); ring.visible = true;
   $('composer').hidden = false;
   $('cDot').style.background = p.color;
-  $('cTo').innerHTML = (p.a.kind === 'main' ? '👑 ' : '') + esc(p.a.name) +
-    (p.a.task ? ` <small>· ${esc(p.a.task)}</small>` : '') + ` <small>· ${esc(String(p.a.id).slice(0, 8))}</small>`;
+  renderHeader(p);
   if (!same) loadHistory(p);
   const isSub = p.a.kind !== 'main';
   $('cText').disabled = $('cSend').disabled = isSub;
@@ -589,6 +646,7 @@ async function send() {
 }
 $('cSend').onclick = () => send();
 $('cClose').onclick = deselect;
+$('cRename').onclick = startRename;
 $('cText').addEventListener('input', e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; });
 $('cText').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } });
 addEventListener('keydown', e => { if (e.key === 'Escape') deselect(); });

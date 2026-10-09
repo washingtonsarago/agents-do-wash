@@ -22,6 +22,17 @@ const WORLD_DIR = path.join(__dirname, '..', 'world');
 const integ = integrations({ emit: (ev) => emitLive(ev), short: (s, n) => short(s, n) });
 const files = new Map();  // caminho -> { offset, rest, agentId }
 const agents = new Map(); // id -> { id, kind, type, name, parent, project, tokens, lastTs }
+
+// apelidos dados pelo usuário (valem no site e no Slack; sobrevivem a reinícios)
+const ALIASES_FILE = path.join(os.homedir(), '.config', 'agents-do-wash', 'aliases.json');
+let aliases = {};
+try { aliases = JSON.parse(fs.readFileSync(ALIASES_FILE, 'utf8')); } catch {}
+// nome automático (projeto ou tipo do agente); o apelido, se houver, tem prioridade
+function setAutoName(a, n) {
+  a.autoName = n;
+  a.alias = aliases[a.id] || null;
+  a.name = a.alias || n;
+}
 const seenMsgs = new Set();
 const seenTools = new Map(); // tool_use_id -> agentId (dedupe hook × JSONL)
 const lastPrompt = new Map(); // agentId -> texto (dedupe hook × JSONL)
@@ -121,7 +132,7 @@ function registerAgent(file) {
     const vague = prev.type === 'subagent' && info.type !== 'subagent';
     if ((!prev.task && info.task) || vague) {
       prev.task = prev.task || info.task;
-      if (vague) prev.type = prev.name = info.type;
+      if (vague) { prev.type = info.type; setAutoName(prev, info.type); }
       broadcast({ kind: 'agent', agent: prev });
     }
     return prev.id;
@@ -130,6 +141,7 @@ function registerAgent(file) {
   info.lastTs = Date.now();
   const cwd = readCwd(file);
   if (cwd) { info.cwd = cwd; info.project = path.basename(cwd); if (info.kind === 'main') info.name = info.project; }
+  setAutoName(info, info.name);
   agents.set(info.id, info);
   broadcast({ kind: 'agent', agent: info });
   return info.id;
@@ -208,7 +220,7 @@ function handleLine(agentId, line, replay) {
   if (o.permissionMode && !o.isSidechain) a.permissionMode = o.permissionMode;
   if (o.cwd && !a.project) {
     a.project = path.basename(o.cwd);
-    if (a.kind === 'main') a.name = a.project;
+    if (a.kind === 'main') setAutoName(a, a.project);
     broadcast({ kind: 'agent', agent: a });
   }
   const base = { id: agentId, ts, replay };
@@ -320,6 +332,7 @@ function syntheticAgent(id, kind, type, h) {
   const project = h.cwd ? path.basename(h.cwd) : undefined;
   const info = { id, kind, type, name: kind === 'main' ? project || 'Claude' : type, task: '',
     parent: kind === 'sub' ? h.session_id : null, project, cwd: h.cwd, tokens: 0, lastTs: Date.now() };
+  setAutoName(info, info.name);
   agents.set(id, info);
   broadcast({ kind: 'agent', agent: info });
   return id;
@@ -481,11 +494,42 @@ function spawnResume(a, text, via, onDone) {
   console.log(`📨 mensagem para ${a.name} (${a.id}) via ${via} · modo ${a.permissionMode || 'padrão'}`);
 }
 
+// renomeia (ou, com nome vazio, volta ao nome automático)
+function renameAgent({ agentId, name }) {
+  const a = agents.get(agentId);
+  if (!a) return [404, { error: 'Agente não encontrado.' }];
+  name = String(name ?? '').replace(/\s+/g, ' ').trim();
+  if (name.length > 40) return [400, { error: 'Use até 40 caracteres.' }];
+  if (name && !/^[\p{L}\p{N} ._-]+$/u.test(name)) return [400, { error: 'Use só letras, números, espaço, ponto, _ ou -.' }];
+  if (name) aliases[a.id] = name; else delete aliases[a.id];
+  try {
+    fs.mkdirSync(path.dirname(ALIASES_FILE), { recursive: true });
+    fs.writeFileSync(ALIASES_FILE, JSON.stringify(aliases, null, 2) + '\n', { mode: 0o600 });
+  } catch (e) { return [500, { error: 'Não consegui salvar: ' + e.message }]; }
+  setAutoName(a, a.autoName || a.name);
+  broadcast({ kind: 'agent', agent: a });
+  console.log(`✏️  ${a.autoName} agora se chama "${a.name}"`);
+  return [200, { ok: true, name: a.name }];
+}
+
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css' };
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
   if (!ALLOWED_HOSTS.has(req.headers.host)) { res.writeHead(403); return res.end(); }
+  if (url.pathname === '/rename' && req.method === 'POST') {
+    if (!authorized(req) || !String(req.headers['content-type']).startsWith('application/json')) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Não autorizado. Recarregue a página.' }));
+    }
+    readBody(req, 4 * 1024).then(body => {
+      let status, payload;
+      try { [status, payload] = renameAgent(JSON.parse(body)); } catch (e) { [status, payload] = [400, { error: e.message }]; }
+      res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify(payload));
+    }, () => { res.writeHead(413); res.end(); });
+    return;
+  }
   if (url.pathname === '/send' && req.method === 'POST') {
     if (!authorized(req) || !String(req.headers['content-type']).startsWith('application/json')) {
       res.writeHead(403, { 'Content-Type': 'application/json' });
@@ -591,6 +635,7 @@ const bot = slackBot({
   // sessões principais ativas, mais recente primeiro
   listSessions: () => sessionsInfo(),
   historyOf: id => history(id),
+  renameAgent,
 });
 bot.start();
 server.listen(PORT, '127.0.0.1', () => {

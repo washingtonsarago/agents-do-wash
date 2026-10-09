@@ -51,12 +51,13 @@ const HELP = [
   '*Agents do Wash* — fale com os agentes do seu Mac por aqui.',
   '• `lista` mostra os agentes rodando: status, pasta, o que pediram, o que estão fazendo e os subagents',
   '• `contexto 2` (ou `contexto nome`) mostra as últimas ações daquela sessão',
+  '• `renomear 2 Faturamento` dá um nome para a sessão (vale aqui e no site); `renomear 2` sem nome volta ao original',
   '• `nome: mensagem` (ou `@nome mensagem`, ou `2: mensagem` pelo número da lista) envia para uma sessão',
   '• texto sem nome vai para a última sessão com que você falou por aqui (ou a mais recente)',
   '• se o agente estiver ocupado, a mensagem entra na fila e é entregue quando ele terminar',
 ].join('\n');
 
-module.exports = function slackBot({ listSessions, sendToAgent, emit, historyOf }) {
+module.exports = function slackBot({ listSessions, sendToAgent, emit, historyOf, renameAgent }) {
   let ws = null, retryTimer = null;
   let state = { kind: 'slackbot', state: 'off' };
   let botUserId = null, teamId = null, allowed = null;
@@ -163,10 +164,23 @@ module.exports = function slackBot({ listSessions, sendToAgent, emit, historyOf 
       return say(`${describe(t, sessions.indexOf(t))}\n\n*Últimas ações:*\n\`\`\`${tail.join('\n').replace(/\`\`\`/g, "'''")}\`\`\``);
     }
 
-    // "nome: msg", "@nome msg" ou "2: msg"
+    // dá um nome para a sessão
+    const rn = text.match(/^(renomear|renomeia|rename)\s+(\S+)(?:\s+([\s\S]+))?$/i);
+    if (rn) {
+      const t = resolveTarget(rn[2], sessions);
+      if (!t) return say('Não achei essa sessão. Mande `lista` para ver os números.');
+      const [st, res] = renameAgent({ agentId: t.id, name: rn[3] || '' });
+      return say(st === 200 ? `✏️ Pronto: \`${t.id.slice(0, 8)}\` agora se chama *${escape(res.name)}*.` : '❌ ' + escape(res.error));
+    }
+
+    // "nome: msg" (o nome pode ter espaços), "@nome msg" ou "2: msg"
     let target = null, msg = text;
-    const m = text.match(/^@?([\w.-]+)(?::\s*|\s+)([\s\S]+)$/);
-    if (m) { const t = resolveTarget(m[1], sessions); if (t) { target = t; msg = m[2].trim(); } }
+    const colon = text.match(/^@?([^:\n]{1,40}):\s*([\s\S]+)$/);
+    if (colon) { const t = resolveTarget(colon[1].trim(), sessions); if (t) { target = t; msg = colon[2].trim(); } }
+    if (!target) {
+      const m = text.match(/^@([\w.-]+)\s+([\s\S]+)$/);
+      if (m) { const t = resolveTarget(m[1], sessions); if (t) { target = t; msg = m[2].trim(); } }
+    }
     if (!target) target = sessions.find(s => s.id === sticky) || sessions[0];
     if (!target) return say('Nenhuma sessão ativa nos últimos 30 min. Abra o Claude Code ou mande `ajuda`.');
     if (!msg) return say(HELP);

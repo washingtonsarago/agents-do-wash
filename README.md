@@ -89,6 +89,13 @@ Clique num bonequinho (ou no nome dele na lista) para abrir o terminal da sessã
 (`GET /history`, até as últimas 400 entradas) e, ao vivo, cada prompt `❯`, resposta `⏺`, ferramenta `⏺ Nome(args)`
 e saída `⎿` (saídas longas começam recolhidas; clique para expandir). Esc fecha.
 
+## Dar nomes aos agentes
+
+No terminal de qualquer agente, clique em ✏️ ao lado do nome, digite e aperte Enter (vazio volta ao nome original).
+No Slack: `renomear 2 Time de Dados`. O apelido vale no site, no Slack e no feed, aparece em cima do bonequinho,
+e fica salvo em `~/.config/agents-do-wash/aliases.json`, sobrevivendo a reinícios. A lista de moradores mostra
+o nome original em letra miúda ao lado do apelido.
+
 ## Falar com um agente pelo site
 
 No terminal de uma sessão principal, escreva no `❯` e aperte Enter. O servidor roda
@@ -137,7 +144,8 @@ Mande DM para o bot **Agents do Wash** no Slack:
 |---|---|
 | `lista` | agentes rodando, numerados: status (🟢 trabalhando, 🟠 aguardando você, ⏳ respondendo, ⚪ parado), pasta, o que foi pedido, a última ação, a última fala e os subagents |
 | `contexto 2` (ou `contexto nome`) | as últimas ações daquela sessão, no estilo do terminal |
-| `ems: roda os testes` (ou `@ems …`, ou `2: …`) | envia para essa sessão (`claude -p --resume`) |
+| `renomear 2 Time de Dados` | dá um nome para a sessão (`renomear 2` sem nome volta ao original) |
+| `ems: roda os testes` (ou `Time de Dados: …`, `@ems …`, `2: …`) | envia para essa sessão (`claude -p --resume`) |
 | texto sem nome | vai para a última sessão com que você falou pelo Slack (ou a mais recente) |
 | `ajuda` | mostra os comandos |
 
