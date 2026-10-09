@@ -11,7 +11,7 @@ Ele usa o modo demo, com dados de exemplo, então nada das suas sessões reais a
    - Com dois monitores: arraste a janelinha para o outro monitor (ou estique para ver também a lista de cenas).
    - Com um monitor só: deixe a janelinha no canto e grave **só a janela do escritório** (`Cmd + Shift + 5` → *Gravar parte selecionada*).
 3. Silencie as notificações (Foco → Não perturbe) e comece a gravar (`Cmd + Shift + 5`).
-4. O tour começa sozinho e cada cena avança no tempo dela. **A versão padrão tem 1 minuto** (10 cenas). A versão completa,
+4. O tour começa sozinho e cada cena avança no tempo dela. **A versão padrão tem 2 minutos** (10 cenas). A versão completa,
    com 18 cenas e ~4 min 20 s, fica em **http://localhost:4321/?demo&tour=completo**.
 
 | Tecla | O que faz |
@@ -24,21 +24,21 @@ Ele usa o modo demo, com dados de exemplo, então nada das suas sessões reais a
 
 > Dica: faça uma passada de ensaio antes. Se uma cena terminar antes da sua fala, aperte `espaço`; se quiser pular, `→`.
 
-## Versão de 1 minuto (padrão)
+## Versão de 2 minutos (padrão)
 
 | # | Cena | Tempo | Sugestão de fala |
 |---|---|---:|---|
-| 1 | Abertura | 5 s | "Esses são os meus agentes do Claude Code trabalhando ao vivo, num escritório 3D." |
-| 2 | Ferramentas | 7 s | "Cada ferramenta tem um lugar: terminal, biblioteca, internet, quadro do Jira." |
-| 3 | Heróis | 7 s | "Dá para trocar o visual: heróis de capa ou de armadura." |
-| 4 | 👔 Chefe | 6 s | "O chefe dá bronca em quem está à toa." |
-| 5 | 🛡️ Segurança | 7 s | "O head de segurança dá dicas… às vezes em jargão demais." |
-| 6 | 💪 CTO | 6 s | "E o CTO dá bronca em todo mundo, até no chefe." |
-| 7 | 🤖 Limpinho | 4 s | "O Limpinho mantém tudo limpo." |
-| 8 | Jira e Slack | 5 s | "Jira e Slack aparecem na parede, ao vivo." |
-| 9 | 🖥️ Terminal | 9 s | "Clico num agente, vejo o terminal dele e mando mensagens, com fila." |
-| 10 | Encerramento | 4 s | "Código aberto no meu GitHub: washingtonsarago/agents-do-wash." |
-| | **Total** | **60 s** | |
+| 1 | Abertura | 8 s | "Esses são os meus agentes do Claude Code trabalhando ao vivo, num escritório 3D que eu criei para acompanhar tudo sem ficar olhando terminal." |
+| 2 | Ferramentas | 14 s | "O que eles fazem vira movimento: quem roda comando vai para o terminal, quem lê código vai para a biblioteca, quem pesquisa vai para o globo, e quem mexe no Jira vai para o quadro." |
+| 3 | Heróis | 14 s | "Dá para trocar o visual de todo mundo: heróis de capa, heróis de armadura, cada um com as cores de um herói conhecido." |
+| 4 | 👔 Chefe | 12 s | "O escritório tem personagens. O chefe patrulha e dá bronca em quem está à toa, no chafariz ou no café." |
+| 5 | 🛡️ Segurança | 16 s | "O head de segurança dá dicas de acordo com o que cada um está fazendo. E às vezes ele exagera no jargão… ninguém entende, e ele tem que traduzir." |
+| 6 | 💪 CTO | 14 s | "E o CTO, grisalho e bombado, dá bronca em todo mundo: no chefe, no head de segurança e nos agentes." |
+| 7 | 🤖 Limpinho | 9 s | "O Limpinho, o robô de limpeza, passa pano no escritório inteiro e ainda pede licença." |
+| 8 | Jira e Slack | 11 s | "Na parede, as minhas issues do Jira e as mensagens do Slack, atualizadas sozinhas." |
+| 9 | 🖥️ Terminal | 16 s | "Clicando num agente, eu vejo o terminal da sessão dele e mando mensagens. Se ele estiver ocupado, a mensagem entra na fila." |
+| 10 | Encerramento | 6 s | "É tudo código aberto, no meu GitHub: washingtonsarago/agents-do-wash." |
+| | **Total** | **120 s** | |
 
 ## Versão completa (`?demo&tour=completo`): cenas e sugestão de narração
 

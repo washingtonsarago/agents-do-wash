@@ -1459,22 +1459,22 @@ const TOUR_SAY = [
   'É tudo código aberto: está no meu GitHub, washingtonsarago/agents-do-wash. Quem quiser, é só clonar e rodar.',
 ];
 
-// versão de 1 minuto (padrão): [índice da cena completa, duração, fala curta]
+// versão de 2 minutos (padrão): [índice da cena completa, duração, fala sugerida]
 const TOUR_SHORT = [
-  [0, 5e3, 'Esses são os meus agentes do Claude Code trabalhando ao vivo, num escritório 3D.'],
-  [2, 7e3, 'Cada ferramenta tem um lugar: terminal, biblioteca, internet, quadro do Jira.'],
-  [4, 7e3, 'Dá para trocar o visual: heróis de capa ou de armadura.'],
-  [5, 6e3, 'O chefe dá bronca em quem está à toa.'],
-  [6, 7e3, 'O head de segurança dá dicas… às vezes em jargão demais.'],
-  [7, 6e3, 'E o CTO dá bronca em todo mundo, até no chefe.'],
-  [8, 4e3, 'O Limpinho mantém tudo limpo.'],
-  [11, 5e3, 'Jira e Slack aparecem na parede, ao vivo.'],
-  [12, 9e3, 'Clico num agente, vejo o terminal dele e mando mensagens, com fila.'],
-  [17, 4e3, 'Código aberto no meu GitHub: washingtonsarago/agents-do-wash.'],
+  [0, 8e3, 'Esses são os meus agentes do Claude Code trabalhando ao vivo, num escritório 3D que eu criei para acompanhar tudo sem ficar olhando terminal.'],
+  [2, 14e3, 'O que eles fazem vira movimento: quem roda comando vai para o terminal, quem lê código vai para a biblioteca, quem pesquisa vai para o globo, e quem mexe no Jira vai para o quadro.'],
+  [4, 14e3, 'Dá para trocar o visual de todo mundo: heróis de capa, heróis de armadura, cada um com as cores de um herói conhecido.'],
+  [5, 12e3, 'O escritório tem personagens. O chefe patrulha e dá bronca em quem está à toa, no chafariz ou no café.'],
+  [6, 16e3, 'O head de segurança dá dicas de acordo com o que cada um está fazendo. E às vezes ele exagera no jargão… ninguém entende, e ele tem que traduzir.'],
+  [7, 14e3, 'E o CTO, grisalho e bombado, dá bronca em todo mundo: no chefe, no head de segurança e nos agentes.'],
+  [8, 9e3, 'O Limpinho, o robô de limpeza, passa pano no escritório inteiro e ainda pede licença.'],
+  [11, 11e3, 'Na parede, as minhas issues do Jira e as mensagens do Slack, atualizadas sozinhas.'],
+  [12, 16e3, 'Clicando num agente, eu vejo o terminal da sessão dele e mando mensagens. Se ele estiver ocupado, a mensagem entra na fila.'],
+  [17, 6e3, 'É tudo código aberto, no meu GitHub: washingtonsarago/agents-do-wash.'],
 ];
 const TOUR_FULL = new URLSearchParams(location.search).get('tour') === 'completo';
-tour.fast = !TOUR_FULL;     // a versão curta anda no dobro da velocidade
-tour.speed = tour.fast ? .5 : 1;
+tour.fast = false;  // as duas versões rodam no ritmo normal (a curta só tem menos cenas)
+tour.speed = 1;
 const tourSeq = TOUR_FULL
   ? TOUR_STEPS.map((st, k) => ({ ...st, say: TOUR_SAY[k] }))
   : TOUR_SHORT.map(([k, ms, say]) => ({ ...TOUR_STEPS[k], ms, text: say, say }));
@@ -1547,7 +1547,7 @@ function tourPause() {
   tourSync();
 }
 function startTour() {
-  if (!DEMO) { location.href = '?demo&tour'; return; } // padrão: versão de 1 minuto // a apresentação usa o modo demo (dados de exemplo)
+  if (!DEMO) { location.href = '?demo&tour'; return; } // padrão: versão de 2 minutos // a apresentação usa o modo demo (dados de exemplo)
   tour.on = true; tour.i = -1;
   tour.skinBefore = skin; // o tour mostra cada um no seu estilo e, no fim, devolve o visual de antes
   if (skin !== 'proprio') { $('skin').value = 'proprio'; setSkin('proprio'); }
