@@ -8,7 +8,6 @@ const os = require('os');
 
 const CONFIG_DIR = process.env.AW_CONFIG_DIR || path.join(os.homedir(), '.config', 'agents-do-wash');
 const readJson = name => { try { return JSON.parse(fs.readFileSync(path.join(CONFIG_DIR, name), 'utf8')); } catch { return null; } };
-const FORCE_TTL = 10 * 60e3;
 
 function botConfig() {
   const c = readJson('slackbot.json');
@@ -54,7 +53,7 @@ const HELP = [
   '• `contexto 2` (ou `contexto nome`) mostra as últimas ações daquela sessão',
   '• `nome: mensagem` (ou `@nome mensagem`, ou `2: mensagem` pelo número da lista) envia para uma sessão',
   '• texto sem nome vai para a última sessão com que você falou por aqui (ou a mais recente)',
-  '• se a sessão estiver aberta num terminal, eu pergunto antes; responda `sim` na thread para confirmar',
+  '• se o agente estiver ocupado, a mensagem entra na fila e é entregue quando ele terminar',
 ].join('\n');
 
 module.exports = function slackBot({ listSessions, sendToAgent, emit, historyOf }) {
@@ -62,7 +61,6 @@ module.exports = function slackBot({ listSessions, sendToAgent, emit, historyOf 
   let state = { kind: 'slackbot', state: 'off' };
   let botUserId = null, teamId = null, allowed = null;
   const seen = new Set();
-  const pendingForce = new Map(); // thread ts -> { agentId, text, until }
   let sticky = null;              // última sessão falada pelo Slack
   let lastList = [];              // para "2: mensagem"
   const ignored = new Set();
@@ -165,13 +163,6 @@ module.exports = function slackBot({ listSessions, sendToAgent, emit, historyOf 
       return say(`${describe(t, sessions.indexOf(t))}\n\n*Últimas ações:*\n\`\`\`${tail.join('\n').replace(/\`\`\`/g, "'''")}\`\`\``);
     }
 
-    // confirmação de envio para sessão aberta num terminal
-    if (/^(sim|s|yes|y)$/i.test(text) && e.thread_ts && pendingForce.has(e.thread_ts)) {
-      const pend = pendingForce.get(e.thread_ts); pendingForce.delete(e.thread_ts);
-      if (Date.now() > pend.until) return say('A confirmação expirou. Mande a mensagem de novo.');
-      return send(pend.agentId, pend.text, true);
-    }
-
     // "nome: msg", "@nome msg" ou "2: msg"
     let target = null, msg = text;
     const m = text.match(/^@?([\w.-]+)(?::\s*|\s+)([\s\S]+)$/);
@@ -179,20 +170,20 @@ module.exports = function slackBot({ listSessions, sendToAgent, emit, historyOf 
     if (!target) target = sessions.find(s => s.id === sticky) || sessions[0];
     if (!target) return say('Nenhuma sessão ativa nos últimos 30 min. Abra o Claude Code ou mande `ajuda`.');
     if (!msg) return say(HELP);
-    return send(target.id, msg, false);
+    return send(target.id, msg);
 
-    function send(agentId, body, force) {
+    function send(agentId, body) {
       const s = listSessions().find(x => x.id === agentId) || { name: agentId, id: agentId };
-      const [status, res] = sendToAgent({ agentId, text: body, force }, {
+      const [status, res] = sendToAgent({ agentId, text: body }, {
         via: 'slack',
         onDone: (ok, out) => say(ok
           ? `✅ *${escape(s.name)}* respondeu:\n${escape(clip(out || '(sem texto)', 3500))}`
           : `❌ *${escape(s.name)}* falhou: ${escape(clip(out, 1000))}`),
       });
-      if (status === 202) { sticky = agentId; return say(`📨 Enviado para *${escape(s.name)}* \`${agentId.slice(0, 8)}\`. A resposta chega aqui na thread.`); }
-      if (res.live) {
-        pendingForce.set(thread, { agentId, text: body, until: Date.now() + FORCE_TTL });
-        return say(`⚠️ ${escape(res.error)}\nResponda *sim* nesta thread para enviar mesmo assim.`);
+      if (status === 202) {
+        sticky = agentId;
+        if (res.queued) return say(`🕒 *${escape(s.name)}* está ocupado. Sua mensagem é a nº ${res.position} da fila e será entregue quando ele terminar; a resposta chega aqui na thread.`);
+        return say(`📨 Enviado para *${escape(s.name)}* \`${agentId.slice(0, 8)}\`. A resposta chega aqui na thread.`);
       }
       return say('❌ ' + escape(res.error || `erro ${status}`));
     }

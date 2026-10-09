@@ -205,6 +205,7 @@ function handleLine(agentId, line, replay) {
   const ts = o.timestamp ? Date.parse(o.timestamp) : Date.now();
   a.lastTs = Math.max(a.lastTs, ts);
   if (o.cwd && !a.cwd) a.cwd = o.cwd;
+  if (o.permissionMode && !o.isSidechain) a.permissionMode = o.permissionMode;
   if (o.cwd && !a.project) {
     a.project = path.basename(o.cwd);
     if (a.kind === 'main') a.name = a.project;
@@ -333,6 +334,7 @@ function handleHook(h) {
   if (first) broadcast({ kind: 'meta', hooks: true });
 
   const id = agentForHook(h);
+  if (h.permission_mode && !h.agent_id && agents.get(id)) agents.get(id).permissionMode = h.permission_mode;
   const base = { id, ts: Date.now(), src: 'hook' };
   switch (h.hook_event_name) {
     case 'SessionStart':
@@ -356,7 +358,9 @@ function handleHook(h) {
     case 'PermissionRequest':
       broadcast({ ...base, kind: 'attention', text: `Permissão: ${h.tool_name || ''} ${describeTool(h.tool_name, h.tool_input)}` }); break;
     case 'Stop':
-      broadcast({ ...base, kind: 'stop' }); break;
+      broadcast({ ...base, kind: 'stop' });
+      if (!running.has(id)) setTimeout(() => pump(id), 1500);
+      break;
     case 'StopFailure':
       broadcast({ ...base, kind: 'stop', failed: true }); break;
     case 'SubagentStop':
@@ -378,7 +382,6 @@ function readBody(req, limit = 2 * 1024 * 1024) {
 const TOKEN = crypto.randomBytes(24).toString('hex'); // muda a cada vez que o servidor sobe
 const ALLOWED_HOSTS = new Set([`localhost:${PORT}`, `127.0.0.1:${PORT}`]); // barra DNS rebinding
 const ALLOWED_ORIGINS = new Set([...ALLOWED_HOSTS].map(h => `http://${h}`));
-const LIVE_MS = 2 * 60e3; // sessão com atividade mais recente que isso provavelmente está aberta num terminal
 const running = new Map(); // sessionId -> processo filho
 
 function findClaude() {
@@ -403,8 +406,20 @@ function rootOf(a) {
   return a && a.kind === 'main' ? a : null;
 }
 
+// ---------- envio com fila ----------
+// Se o agente está ocupado (respondendo outra mensagem nossa, ou trabalhando no terminal),
+// a mensagem entra na fila e é entregue quando ele terminar (hook Stop ou 60 s sem atividade).
+const BUSY_MS = 60e3;
+const PERMISSION_MODES = new Set(['acceptEdits', 'auto', 'bypassPermissions', 'manual', 'dontAsk', 'plan']);
+const queues = new Map(); // sessionId -> [{ text, via, onDone }]
+
+function isBusy(a) {
+  if (running.has(a.id)) return true;
+  return a.ctx?.status === 'working' && Date.now() - a.lastTs < BUSY_MS;
+}
+
 // via: 'site' ou 'slack'; onDone(ok, textoCompleto) é chamado quando o claude termina
-function sendToAgent({ agentId, text, force }, { via = 'site', onDone } = {}) {
+function sendToAgent({ agentId, text }, { via = 'site', onDone } = {}) {
   const a = agents.get(agentId);
   if (!a) return [404, { error: 'Agente não encontrado.' }];
   if (a.kind !== 'main') {
@@ -414,16 +429,35 @@ function sendToAgent({ agentId, text, force }, { via = 'site', onDone } = {}) {
   text = String(text || '').trim();
   if (!text) return [400, { error: 'Mensagem vazia.' }];
   if (text.length > 20000) return [400, { error: 'Mensagem longa demais.' }];
-  if (running.has(a.id)) return [409, { error: 'Este agente ainda está respondendo à mensagem anterior.' }];
   if (!a.cwd || !fs.existsSync(a.cwd)) return [400, { error: 'Não encontrei o diretório desta sessão.' }];
-  const since = Date.now() - a.lastTs;
-  if (!force && since < LIVE_MS) {
-    return [409, { live: true, error: `Esta sessão teve atividade há ${Math.round(since / 1000)} s e deve estar aberta num terminal. Enviar abre uma segunda instância na mesma conversa, rodando em paralelo.` }];
-  }
+  const q = queues.get(a.id) || [];
+  if (q.length >= 20) return [429, { error: 'A fila deste agente já tem 20 mensagens.' }];
+  q.push({ text, via, onDone });
+  queues.set(a.id, q);
+  if (!isBusy(a) && q.length === 1) { pump(a.id); return [202, { ok: true, queued: false }]; }
+  broadcast({ id: a.id, ts: Date.now(), kind: 'sendQueued', text: short(text, 160), position: q.length, via });
+  console.log(`🕒 mensagem na fila de ${a.name} (posição ${q.length}) via ${via}`);
+  return [202, { ok: true, queued: true, position: q.length }];
+}
 
+// entrega a próxima mensagem da fila, se o agente estiver livre
+function pump(id) {
+  const a = agents.get(id), q = queues.get(id);
+  if (!a || !q?.length || isBusy(a)) return;
+  const { text, via, onDone } = q.shift();
+  if (!q.length) queues.delete(id);
+  spawnResume(a, text, via, onDone);
+}
+setInterval(() => { for (const id of queues.keys()) pump(id); }, 5000);
+
+function spawnResume(a, text, via, onDone) {
   const env = { ...process.env };
   delete env.CLAUDECODE; delete env.CLAUDE_CODE_ENTRYPOINT; // não herdar o contexto de uma sessão que tenha iniciado o servidor
-  const child = spawn(CLAUDE_BIN, ['-p', '--resume', a.id, text], { cwd: a.cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
+  // retoma no mesmo modo de permissão da sessão (ex.: auto); sem terminal, o que pediria aprovação seria negado
+  const args = ['-p', '--resume', a.id];
+  if (PERMISSION_MODES.has(a.permissionMode)) args.push('--permission-mode', a.permissionMode);
+  args.push(text);
+  const child = spawn(CLAUDE_BIN, args, { cwd: a.cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
   running.set(a.id, child);
   lastPrompt.set(a.id, short(text, 160)); // o balão vem do sendStart; não repetir pelo hook/JSONL
   let out = '', err = '', finished = false;
@@ -434,16 +468,17 @@ function sendToAgent({ agentId, text, force }, { via = 'site', onDone } = {}) {
     if (finished) return; finished = true;
     clearTimeout(killer); running.delete(a.id);
     const ok = code === 0;
-    const text = ok ? out : spawnErr?.message || err || `saiu com código ${code}`;
-    broadcast({ id: a.id, ts: Date.now(), kind: 'sendDone', ok, text: short(text, 300) });
-    console.log(`📨 ${a.name}: ${ok ? 'respondeu' : 'falhou'} (${short(text, 120)})`);
-    try { onDone?.(ok, String(text).trim()); } catch (e) { console.error('onDone:', e.message); }
+    const result = ok ? out : spawnErr?.message || err || `saiu com código ${code}`;
+    if (a.ctx) a.ctx.status = 'idle';
+    broadcast({ id: a.id, ts: Date.now(), kind: 'sendDone', ok, text: short(result, 300) });
+    console.log(`📨 ${a.name}: ${ok ? 'respondeu' : 'falhou'} (${short(result, 120)})`);
+    try { onDone?.(ok, String(result).trim()); } catch (e) { console.error('onDone:', e.message); }
+    setTimeout(() => pump(a.id), 1000); // próxima da fila
   };
   child.on('error', e => done(-1, e));
   child.on('close', code => done(code));
   broadcast({ id: a.id, ts: Date.now(), kind: 'sendStart', text: short(text, 160), via });
-  console.log(`📨 mensagem para ${a.name} (${a.id}) via ${via}`);
-  return [202, { ok: true }];
+  console.log(`📨 mensagem para ${a.name} (${a.id}) via ${via} · modo ${a.permissionMode || 'padrão'}`);
 }
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css' };

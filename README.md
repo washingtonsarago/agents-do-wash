@@ -64,8 +64,9 @@ No terminal de uma sessão principal, escreva no `❯` e aperte Enter. O servido
 então a resposta aparece no transcript, no feed e no bonequinho.
 
 - Só sessões principais 👑. Subagents recebem tarefas de quem os criou; a caixa oferece falar com o agente principal.
-- Se a sessão teve atividade nos últimos 2 min, ela deve estar aberta num terminal. O site avisa e só envia com **Enviar mesmo assim**, porque abre uma segunda instância em paralelo na mesma conversa.
-- Roda sem terminal interativo: ferramentas que pediriam permissão seguem as regras do seu `settings.json` e, se não estiverem liberadas, são negadas.
+- **Fila**: se o agente está ocupado (respondendo outra mensagem, ou trabalhando no terminal), a mensagem entra na fila e é entregue quando ele termina (hook `Stop`, ou 60 s sem atividade). Até 20 por sessão.
+- **Permissões**: a sessão é retomada no mesmo modo de permissão em que estava (ex.: `auto`). Como não há terminal para aprovar, o que ainda pedisse aprovação nesse modo é negado.
+- Uma sessão aberta num terminal não vê as mensagens enviadas por aqui até ser retomada (`claude --resume`).
 - Um envio por vez por sessão; tempo máximo de 30 min.
 - **Segurança**: o `POST /send` exige um token aleatório gerado a cada subida do servidor (injetado na página), `Origin` e `Host` locais e `Content-Type: application/json`. Outros sites abertos no navegador não conseguem enviar.
 - Binário: `CLAUDE_BIN` ou o primeiro `claude` encontrado em `~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin` ou `PATH`.
@@ -106,14 +107,13 @@ Mande DM para o bot **Agents do Wash** no Slack:
 | `contexto 2` (ou `contexto nome`) | as últimas ações daquela sessão, no estilo do terminal |
 | `ems: roda os testes` (ou `@ems …`, ou `2: …`) | envia para essa sessão (`claude -p --resume`) |
 | texto sem nome | vai para a última sessão com que você falou pelo Slack (ou a mais recente) |
-| `sim` na thread | confirma o envio para uma sessão que está aberta num terminal |
 | `ajuda` | mostra os comandos |
 
 A resposta do agente chega na mesma thread, e o bonequinho reage no escritório.
 
 **Segurança:** o bot só aceita **DMs de um único usuário** (`allowedUser`, você), do mesmo workspace do bot.
 Canais, outras pessoas, outros bots, edições e eventos repetidos são ignorados. A conexão é por Socket Mode (sai do
-seu Mac; não há URL pública). Vale tudo das regras do envio pelo site (só sessões principais, uma por vez, confirmação).
+seu Mac; não há URL pública). Vale tudo das regras do envio pelo site (só sessões principais, fila, mesmo modo de permissão).
 
 **Instalação** (uma vez):
 1. Em https://api.slack.com/apps → *Create New App* → *From a manifest* → escolha o workspace e cole `slack-app-manifest.yml`.

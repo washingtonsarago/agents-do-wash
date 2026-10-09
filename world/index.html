@@ -98,7 +98,7 @@
   <div id="termLog"></div>
   <div class="row"><span class="ps">❯</span>
     <textarea id="cText" rows="1" placeholder="Mensagem para o agente (Enter envia, Shift+Enter quebra a linha)"></textarea>
-    <button class="warn" id="cForce" hidden>Enviar mesmo assim</button><button id="cSend">Enviar</button></div>
+    <button id="cSend">Enviar</button></div>
   <div id="cStatus"></div>
 </div>
 <div id="empty" class="pill">Nenhum agente ativo — rode o Claude Code ou abra <a href="?demo">?demo</a></div>
@@ -381,6 +381,10 @@ function handle(ev) {
       feed(p, (ev.human ? '🧑 <b>Você:</b> ' : '📋 ') + esc(ev.text)); p.lastEvent = now; break;
     case 'tokens':
       p.a.tokens = ev.total; renderRoster(); break;
+    case 'sendQueued':
+      say(p, `🕒 na fila (${ev.position}): ${ev.text}`, 4000);
+      feed(p, `🕒 <b>Na fila (nº ${ev.position}, pelo ${ev.via === 'slack' ? 'Slack' : 'site'}):</b> ` + esc(ev.text));
+      if (selected === p) termSys(`🕒 na fila (nº ${ev.position}): ${ev.text}`); break;
     case 'sendStart':
       p.attention = false; p.lastEvent = now; emote(p, 'Yes');
       say(p, '📨 ' + ev.text, 5000);
@@ -492,7 +496,6 @@ function select(p) {
   $('cTo').innerHTML = (p.a.kind === 'main' ? '👑 ' : '') + esc(p.a.name) +
     (p.a.task ? ` <small>· ${esc(p.a.task)}</small>` : '') + ` <small>· ${esc(String(p.a.id).slice(0, 8))}</small>`;
   if (!same) loadHistory(p);
-  $('cForce').hidden = true;
   const isSub = p.a.kind !== 'main';
   $('cText').disabled = $('cSend').disabled = isSub;
   $('cSub').hidden = !isSub;
@@ -517,10 +520,10 @@ function demoTerm(ev) {
 }
 function deselect() { selected = null; ring.visible = false; $('composer').hidden = true; }
 
-async function send(force = false) {
+async function send() {
   const p = selected, text = $('cText').value.trim();
   if (!p || !text) return;
-  $('cSend').disabled = true; $('cForce').hidden = true;
+  $('cSend').disabled = true;
   if (DEMO) {
     handle({ id: p.a.id, kind: 'sendStart', text });
     termAppend([{ t: 'user', text }]);
@@ -532,18 +535,17 @@ async function send(force = false) {
   }
   try {
     const r = await fetch('/send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-AW-Token': TOKEN },
-      body: JSON.stringify({ agentId: p.a.id, text, force }) });
+      body: JSON.stringify({ agentId: p.a.id, text }) });
     const body = await r.json().catch(() => ({}));
-    if (r.ok) { $('cText').value = ''; setCStatus('Enviado. Aguardando a resposta…'); }
-    else { setCStatus(body.error || `Erro ${r.status}`, true); if (body.live) $('cForce').hidden = false; }
+    if (r.ok) { $('cText').value = ''; setCStatus(body.queued ? `Na fila (nº ${body.position}): entrego quando o agente terminar o que está fazendo.` : 'Enviado. Aguardando a resposta…'); }
+    else setCStatus(body.error || `Erro ${r.status}`, true);
   } catch (e) { setCStatus('Sem conexão com o observador.', true); }
   $('cSend').disabled = false;
 }
-$('cSend').onclick = () => send(false);
-$('cForce').onclick = () => send(true);
+$('cSend').onclick = () => send();
 $('cClose').onclick = deselect;
 $('cText').addEventListener('input', e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; });
-$('cText').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(false); } });
+$('cText').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } });
 addEventListener('keydown', e => { if (e.key === 'Escape') deselect(); });
 
 // câmera: de frente para um quadro, ou de volta à visão geral
