@@ -44,6 +44,14 @@ bot:   ✅ dev-performance-analyzer respondeu: Todos os 42 testes passaram.
 
 <sub>Prints do modo demo (`/?demo`), com dados fictícios; a conversa do Slack é um exemplo.</sub>
 
+## 🎬 Modo apresentação
+
+Um tour automático, com câmera, legendas e cenas encenadas (no modo demo), para gravar a tela e narrar: abra
+**http://localhost:4321/?demo&tour** ou clique em 🎬 no topo. São 15 cenas, ~3 min 40 s: os agentes, as ferramentas,
+os subagentes, os heróis, o chefe, o head de segurança, o CTO, o Limpinho, a copa, o jardim, Jira e Slack, o terminal e o bot do Slack.
+Teclas: `→`/`←` cenas, `espaço` pausa, `H` esconde a legenda, `Esc` sai. O roteiro de narração está em
+[docs/roteiro-apresentacao.md](docs/roteiro-apresentacao.md).
+
 ## Arquitetura
 
 ![Arquitetura do Agents do Wash](docs/arquitetura.png)

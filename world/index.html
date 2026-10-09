@@ -13,7 +13,7 @@
   #scene { position:fixed; inset:0; }
   #hud { position:fixed; top:16px; left:16px; display:flex; gap:10px; align-items:center; pointer-events:none; }
   #hud h1 { margin:0; font-size:18px; letter-spacing:-.02em; }
-  #home, #bossBtn, #secBtn, #cleanBtn, #ctoBtn, #zoomIn, #zoomOut, #goto { pointer-events:auto; border:0; cursor:pointer; font:inherit; color:var(--ink); }
+  #home, #bossBtn, #secBtn, #cleanBtn, #ctoBtn, #zoomIn, #zoomOut, #goto, #tourBtn { pointer-events:auto; border:0; cursor:pointer; font:inherit; color:var(--ink); }
   #goto { appearance:none; }
   #cFollow.on { color:#5fd38d; }
   #bossBtn.off, #secBtn.off, #cleanBtn.off, #ctoBtn.off { opacity:.45; }
@@ -82,6 +82,29 @@
   #composer button.warn { background:#c0392b; }
   #composer button:disabled { opacity:.45; cursor:default; }
   .hint { color:var(--muted); font-size:12px; }
+  /* modo apresentação */
+  body.touring #hud > :not(h1) { display:none; }
+  body.touring #empty { display:none; }
+  #tour[hidden] { display:none; }
+  #tourCap { position:fixed; left:50%; bottom:28px; transform:translateX(-50%); width:min(880px, calc(100% - 32px));
+    background:rgba(28,27,34,.88); color:#fff; border-radius:18px; padding:18px 26px 16px; box-shadow:0 18px 50px rgba(0,0,0,.35);
+    backdrop-filter: blur(6px); transition: opacity .3s; }
+  #tourCap.hidden { opacity:0; }
+  #tourKicker { font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:#f0a27f; font-weight:700; }
+  #tourTitle { margin:4px 0 6px; font-size:30px; letter-spacing:-.02em; }
+  #tourText { margin:0; font-size:17px; line-height:1.45; color:#dcd8d0; }
+  .tbar { margin-top:12px; height:4px; border-radius:2px; background:rgba(255,255,255,.12); overflow:hidden; }
+  .tbar i { display:block; height:100%; width:0; background:#f0a27f; }
+  #tourPause { position:fixed; top:44px; left:50%; transform:translateX(-50%); background:rgba(28,27,34,.85); color:#fff; padding:6px 14px; border-radius:999px; font-weight:600; }
+  #tourHint { position:fixed; top:18px; left:50%; transform:translateX(-50%); color:rgba(43,42,51,.55); font-size:11px; white-space:nowrap; }
+  #slackDemo { position:fixed; right:24px; top:70px; width:min(460px, calc(100% - 48px)); background:#1d1c22; color:#e8e4dc; border-radius:14px;
+    box-shadow:0 18px 50px rgba(0,0,0,.35); padding:14px 16px; display:flex; flex-direction:column; gap:10px; font-size:14px; line-height:1.45; }
+  #slackDemo[hidden] { display:none; }
+  .sd-h { font-weight:700; color:#bcb7c4; font-size:12px; text-transform:uppercase; letter-spacing:.08em; }
+  .sd-m { background:rgba(255,255,255,.05); border-radius:10px; padding:8px 10px; animation: sdIn .35s ease; }
+  .sd-m.me { background:rgba(240,162,127,.12); }
+  .sd-who { display:block; font-size:12px; color:#f0a27f; margin-bottom:2px; }
+  @keyframes sdIn { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform:none; } }
   @media (max-width: 720px) { #side { top:auto; left:16px; width:auto; height:34vh; } #composer { width:auto; right:16px; bottom:calc(34vh + 26px); height:44vh; } }
 </style>
 </head>
@@ -101,6 +124,7 @@
   <button id="zoomIn" class="pill" title="Aproximar (+)">➕</button>
   <button id="zoomOut" class="pill" title="Afastar (−)">➖</button>
   <button id="home" class="pill" title="Visão geral">🏠</button>
+  <button id="tourBtn" class="pill" title="Modo apresentação">🎬</button>
 </div>
 <div id="side">
   <div class="card"><h2>Moradores <span class="hint" style="text-transform:none;letter-spacing:0">· clique para falar ou renomear ✏️</span></h2><div id="roster"></div></div>
@@ -115,6 +139,17 @@
     <button id="cSend">Enviar</button></div>
   <div id="cStatus"></div>
 </div>
+<div id="tour" hidden>
+  <div id="tourCap">
+    <div id="tourKicker"></div>
+    <h2 id="tourTitle"></h2>
+    <p id="tourText"></p>
+    <div class="tbar"><i id="tourBar"></i></div>
+  </div>
+  <div id="tourPause" hidden>⏸ pausado</div>
+  <div id="tourHint">→ próximo · ← anterior · espaço pausa · H esconde a legenda · Esc sai</div>
+</div>
+<div id="slackDemo" hidden></div>
 <div id="empty" class="pill">Nenhum agente ativo — rode o Claude Code ou abra <a href="?demo">?demo</a></div>
 
 <script type="importmap">
@@ -529,6 +564,9 @@ function setStatus(live, text) {
 // ---------- falar com um agente ----------
 const TOKEN = document.querySelector('meta[name="aw-token"]').content;
 const DEMO = new URLSearchParams(location.search).has('demo');
+const TOUR = new URLSearchParams(location.search).has('tour');
+const tour = { on: false }; // modo apresentação (o tour pausa os eventos aleatórios do demo)
+const demoApi = {};
 let selected = null;
 const ring = new THREE.Mesh(new THREE.RingGeometry(1.05, 1.35, 40), new THREE.MeshBasicMaterial({ color: '#fff', transparent: true, opacity: .9, depthWrite: false }));
 ring.rotation.x = -Math.PI / 2; ring.visible = false; scene.add(ring);
@@ -823,6 +861,11 @@ function startDemo() {
     handle({ id: agent.id, kind: 'intro', text: `Oi! Sou ${name}`, style });
   };
   demoAgent({ id: 'main', kind: 'main', type: 'main', name: 'repo', tokens: 0 });
+  demoApi.demoAgent = demoAgent;
+  if (TOUR) { // apresentação: todo mundo entra de uma vez
+    types.forEach((t, i) => setTimeout(() => demoAgent({ id: t, kind: 'sub', type: t, name: t, task: 'tarefa demo', parent: people.has(parentOf[t]) ? parentOf[t] : 'main', tokens: 0 }), 300 + i * 250));
+    types.length = 0;
+  }
   // integrações de mentira, para ver o quadro e a TV funcionando
   const card = (key, type, summary, cat, status) => ({ key, type, summary, cat, status, url: 'https://example.atlassian.net/browse/' + key });
   const demoCards = [card('DEMO-51', 'Bug', 'Formulário de cadastro envia dados antes da validação', 'indeterminate', 'Em andamento'),
@@ -845,6 +888,7 @@ function startDemo() {
     onEvent({ kind: 'slack', configured: true, msgs: slackMsgs, fresh: [m.id], updatedAt: Date.now() });
   }, 25e3);
   setInterval(() => { // um agente mexe numa issue de vez em quando
+    if (tour.on) return;
     const ids = [...people.keys()], id = ids[Math.floor(Math.random() * ids.length)];
     const c = demoCards[Math.floor(Math.random() * demoCards.length)];
     if (Math.random() < .3 && c.cat !== 'done') { c.cat = c.cat === 'new' ? 'indeterminate' : 'done'; c.status = c.cat === 'done' ? 'Concluído' : 'Em andamento'; }
@@ -854,6 +898,7 @@ function startDemo() {
   }, 9e3);
   let n = 0;
   setInterval(() => {
+    if (tour.on) return;
     if (n < types.length && Math.random() < .25) {
       const t = types[n++];
       const parent = people.has(parentOf[t]) ? parentOf[t] : 'main';
@@ -935,6 +980,8 @@ function createNpc(cfg) {
           g.rotation.y = Math.atan2(vp.x - g.position.x, vp.z - g.position.z);
           cfg.talkTo(npc, npc.victim, now);
           npc.until = now + 3400; npc.nextTalk = now + cfg.cooldown[0] + Math.random() * (cfg.cooldown[1] - cfg.cooldown[0]);
+        } else if (npc.scripted) {
+          npc.until = Infinity;
         } else if (cfg.onArrive) {
           npc.until = now + cfg.onArrive(npc, now); // ex.: o robô de limpeza começa a limpar
         } else {
@@ -944,7 +991,7 @@ function createNpc(cfg) {
       }
       cfg.whileIdle?.(npc, now);
       if (!buddy.busy) buddy.play('Idle');
-      if (now > npc.until) {
+      if (now > npc.until && !npc.scripted) {
         npc.victim = now > npc.nextTalk ? cfg.pickTarget(now) : null;
         go(npc.victim ? toward(npc.victim) : (cfg.patrol ? cfg.patrol() : patrolPoint()));
         npc.state = 'walk';
@@ -1035,9 +1082,9 @@ createNpc({
   spawn: new THREE.Vector3(2, 0, 23), firstDelay: 7000, firstTalk: 12000, bubbleBg: 'rgba(225,245,232,.97)', tagY: 4.5,
   mutters: SECURITY.team, mutterChance: .35,
   pickTarget: now => weightedPick(p => p.attention ? 4 : securityKind(p) !== 'general' ? 3 : 1, now),
-  talkTo(npc, p) {
+  talkTo(npc, p, now, opts = {}) {
     const n = firstName(p);
-    if (Math.random() < .25) { // jargão: ninguém entende, ele traduz
+    if (opts.jargon ?? Math.random() < .25) { // jargão: ninguém entende, ele traduz
       const [hard, plain] = pickOne(SECURITY.jargon);
       const phrase = hard.replace('{n}', n);
       npc.buddy.emote('Point'); npc.say('🛡️ ' + phrase, 3000);
@@ -1046,7 +1093,7 @@ createNpc({
       setTimeout(() => { npc.say('🛡️ ' + plain + ' 🙄', 3500); feedSys(`🛡️ <b>Head de Segurança</b>: “${esc(plain)}”`, '#3f9e6a'); }, 2600);
       return;
     }
-    const phrase = pickOne(SECURITY[securityKind(p)]).replace('{n}', n);
+    const phrase = pickOne(SECURITY[opts.kind || securityKind(p)]).replace('{n}', n);
     npc.buddy.emote('Point'); npc.say('🛡️ ' + phrase);
     feedSys(`🛡️ <b>Head de Segurança</b> para <b>${esc(p.a.name)}</b>: “${esc(phrase)}”`, '#3f9e6a');
     react(p, 'Yes', '👍 ' + pickOne(['Anotado!', 'Boa, vou conferir!', 'Pode deixar!', 'Já ajusto!', 'Valeu pelo toque!']));
@@ -1131,6 +1178,264 @@ const cto = createNpc({
 
 function updateNpcs(dt, t, now) { for (const n of NPCS) n.update(dt, t, now); }
 if (window.__agentWorld) Object.assign(window.__agentWorld, { boss, npcs: NPCS, goRest }); // para depurar
+
+// ---------- 🎬 modo apresentação ----------
+// Tour com câmera, legendas e cenas encenadas (no modo demo), para gravar a tela narrando.
+// Teclas: → próximo · ← anterior · espaço pausa · H esconde/mostra a legenda · Esc sai.
+const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+const agentsList = () => [...people.values()].filter(p => !p.leaving);
+const npcById = id => NPCS.find(n => n.cfg.id === id);
+function hold(p) { release(p); p.attention = false; p.lastEvent = performance.now() + 1e9; } // não fica à toa sozinho
+function place(p, x, z, face = 0) { hold(p); p.path = []; p.g.position.set(x, world.groundY(x, z), z); p.target.set(x, 0, z); p.face = face; p.g.rotation.y = face; }
+function npcPlace(n, x, z, face = 0) { n.scripted = true; n.path = []; n.victim = null; n.until = Infinity; n.moving = false; n.g.position.set(x, 0, z); n.g.rotation.y = face; }
+function npcWalk(n, x, z) { n.scripted = true; n.victim = null; n.until = Infinity; n.target.set(x, 0, z); n.path = world.route(n.g.position, n.target); }
+function npcAway(n) { npcPlace(n, -27, 12 + NPCS.indexOf(n) * 1.8, Math.PI / 2); } // estaciona fora de cena (sala de reunião)
+const camAt = (x, y, z, zoom, off = V3(55, 50, 55)) => flyTo(V3(x, y, z).add(off), V3(x, y, z), zoom);
+const sideVisible = on => { $('side').style.display = on ? '' : 'none'; };
+
+const TOUR_STEPS = [
+  { kicker: 'Agents do Wash', title: 'Meus agentes do Claude Code, ao vivo', ms: 12e3, side: false,
+    text: 'Um escritório 3D onde cada agente aparece trabalhando de verdade, a partir dos registros do Claude Code.',
+    async run(w) {
+      agentsList().forEach(p => { hold(p); goTo(p, p.home, p.desk.face, null); });
+      NPCS.forEach(npcAway);
+      camAt(16, 0, 0, .95);
+    } },
+  { kicker: 'Os agentes', title: 'Cada um escolhe seu nome e seu estilo', ms: 16e3, side: true,
+    text: 'Ao chegar, o agente escolhe um nome e uma roupa (clássico, capa ou armadura) e guarda isso. Do lado, a lista de quem está trabalhando.',
+    async run(w) {
+      const list = agentsList().slice(0, 7);
+      list.forEach((p, i) => place(p, -7 + i * 2.4, 18.6, .25));
+      camAt(.5, 2, 18.6, 3);
+      for (const p of list) { await w(1300); emote(p, 'Wave'); say(p, `👋 Oi! Sou ${p.a.name}`, 2600); }
+    } },
+  { kicker: 'Trabalho de verdade', title: 'Cada ferramenta tem um lugar', ms: 16e3, side: true,
+    text: 'Ler código vai para a biblioteca, comandos para o terminal, pesquisa para a internet, Jira para o quadro. Escrever código é na própria mesa.',
+    async run(w) {
+      const l = agentsList();
+      l.forEach(p => { hold(p); goTo(p, p.home, p.desk.face, null); });
+      camAt(0, 0, -6, 1.25);
+      const plan = [['Bash', 'go test ./...'], ['Read', 'handler.go'], ['WebSearch', 'erro de timeout'], ['mcp__claude_ai_Atlassian__editJiraIssue', 'DEMO-51'], ['Edit', 'orders.go'], ['Grep', 'func New']];
+      for (let i = 0; i < plan.length && i < l.length; i++) { await w(1200); handle({ id: l[i].a.id, kind: 'tool', tool: plan[i][0], target: plan[i][1], issue: plan[i][0].includes('Jira') ? plan[i][1] : undefined }); hold(l[i]); }
+    } },
+  { kicker: 'Agentes e subagentes', title: 'O principal delega e acompanha', ms: 14e3, side: true,
+    text: 'Quando o agente principal chama um subagente, os dois se encontram na sala de reunião e a lista vira uma árvore: cada um embaixo de quem o criou.',
+    async run(w) {
+      const main = people.get('main');
+      if (!main) return;
+      camAt(-20, 1, 15, 3);
+      handle({ id: 'main', kind: 'tool', tool: 'Agent', target: 'debugger' }); hold(main);
+      await w(2500);
+      if (!people.has('tour-sub')) demoApi.demoAgent?.({ id: 'tour-sub', kind: 'sub', type: 'debugger', name: 'debugger', task: 'investigar o bug de timeout', parent: 'main', tokens: 0 });
+      await w(400);
+      const sub = people.get('tour-sub');
+      if (sub) { hold(sub); const pos = world.standAt('meeting', 3); goTo(sub, pos, Math.atan2(-20 - pos.x, 15 - pos.z), 'Wave'); }
+    } },
+  { kicker: 'Visual', title: 'Heróis: capas e armaduras', ms: 18e3, side: false,
+    text: 'Um seletor troca o visual de todos: heróis de capa, heróis de armadura, cada um com as cores de um herói conhecido, ou cada um no seu estilo.',
+    async run(w) {
+      const list = agentsList().slice(0, 6);
+      list.forEach((p, i) => place(p, -6 + i * 2.6, 19.5, i % 2 ? .9 : -.5));
+      camAt(.5, 1.8, 19.5, 3.4, V3(18, 16, 55));
+      const set = k => { $('skin').value = k; setSkin(k); };
+      set('capa'); await w(6000); set('armadura'); await w(6000); set('proprio'); // volta: cada um com a roupa que escolheu
+    } },
+  { kicker: 'Personagens do escritório', title: '👔 O chefe', ms: 14e3, side: false,
+    text: 'Ele patrulha o escritório e dá bronca, de preferência em quem está descansando no chafariz, tomando café ou acabou de quebrar um teste.',
+    async run(w) {
+      const v = agentsList()[1], seat = world.seats[1], boss = npcById('chefe');
+      if (!v || !boss) return;
+      place(v, seat.pos.x, seat.pos.z, seat.face); seat.owner = v.a.id; v.seat = seat; v.restKind = 'fountain';
+      camAt(56, 1, 3, 3.2);
+      npcPlace(boss, 47, 8, 1);
+      npcWalk(boss, seat.pos.x - 1.6, seat.pos.z + 1.2);
+      await w(4200);
+      boss.g.rotation.y = Math.atan2(v.g.position.x - boss.g.position.x, v.g.position.z - boss.g.position.z);
+      boss.cfg.talkTo(boss, v, performance.now());
+    } },
+  { kicker: 'Personagens do escritório', title: '🛡️ O head de segurança', ms: 17e3, side: false,
+    text: 'Ele dá dicas de acordo com o que cada agente está fazendo. E às vezes exagera no jargão… ninguém entende, e ele traduz.',
+    async run(w) {
+      const [a, b] = agentsList();
+      const sec = npcById('seguranca');
+      if (!a || !b || !sec) return;
+      place(a, -22.4, -1, -Math.PI / 2); a.lastTool = 'Bash';
+      place(b, -22.4, 2.2, -Math.PI / 2);
+      camAt(-22, 1.5, 1, 3.4);
+      npcPlace(sec, -17, 1, -Math.PI / 2);
+      npcWalk(sec, -20.6, -.6);
+      await w(2600);
+      sec.g.rotation.y = Math.atan2(a.g.position.x - sec.g.position.x, a.g.position.z - sec.g.position.z);
+      sec.cfg.talkTo(sec, a, performance.now(), { jargon: false, kind: 'bash' });
+      await w(5500);
+      npcWalk(sec, -20.6, 2.6);
+      await w(1500);
+      sec.g.rotation.y = Math.atan2(b.g.position.x - sec.g.position.x, b.g.position.z - sec.g.position.z);
+      sec.cfg.talkTo(sec, b, performance.now(), { jargon: true });
+    } },
+  { kicker: 'Personagens do escritório', title: '💪 O CTO', ms: 18e3, side: false,
+    text: 'Grisalho, bombado e de regata. Ele dá bronca em todo mundo: nos agentes, no chefe e até no head de segurança.',
+    async run(w) {
+      const boss = npcById('chefe'), sec = npcById('seguranca'), cto = npcById('cto'), a = agentsList()[2];
+      if (!boss || !sec || !cto) return;
+      // CTO de um lado, de frente para a fila; a câmera vê todos de perfil
+      npcPlace(cto, -5, 19, Math.PI / 2);
+      npcPlace(boss, -1.6, 18.6, -Math.PI / 2); npcPlace(sec, 1.2, 19.4, -Math.PI / 2);
+      if (a) place(a, 3.8, 18.8, -Math.PI / 2);
+      camAt(-.4, 2.2, 19, 3.1);
+      const face = t => { cto.g.rotation.y = Math.atan2(t.g.position.x - cto.g.position.x, t.g.position.z - cto.g.position.z); };
+      await w(1500); face(boss); cto.cfg.talkTo(cto, boss);
+      await w(5000); face(sec); cto.cfg.talkTo(cto, sec);
+      if (a) { await w(5000); face(a); cto.cfg.talkTo(cto, a); }
+    } },
+  { kicker: 'Personagens do escritório', title: '🤖 O Limpinho', ms: 12e3, side: false,
+    text: 'O robô de limpeza passa pano pelo escritório inteiro, deixa a placa de piso molhado e pede licença para quem está no caminho.',
+    async run(w) {
+      const r = npcById('limpeza'), a = agentsList()[3];
+      if (!r) return;
+      if (a) place(a, 3.4, 13.8, -.6);
+      npcPlace(r, 6, 16.5, 0);
+      camAt(3.8, 1.6, 15.2, 3.4);
+      npcWalk(r, 2.2, 15.2);
+      await w(2800);
+      r.g.rotation.y = .6;
+      r.cfg.onArrive(r, performance.now());
+    } },
+  { kicker: 'Vida no escritório', title: '☕ Pausa para o café', ms: 13e3, side: false,
+    text: 'Agentes à toa não ficam parados: tomam café na copa, leem na biblioteca, batem papo na reunião ou descansam no chafariz.',
+    async run(w) {
+      camAt(22.5, 1.8, 20, 4.4);
+      const l = agentsList().slice(0, 4);
+      l.forEach((p, i) => {
+        const spot = world.coffeeSpots[i];
+        place(p, spot.pos.x, spot.pos.z, 0);
+        spot.owner = p.a.id; p.seat = spot; p.restKind = 'coffee'; p.lastEvent = performance.now() - 60e3; p.restUntil = Infinity;
+        p.nextSip = performance.now() + i * 900; p.nextChat = performance.now() + 1500 + i * 2500;
+      });
+    } },
+  { kicker: 'O jardim', title: 'Riacho, ponte e chafariz', ms: 12e3, side: false,
+    text: 'Pela porta de vidro sai-se para o jardim. Todo mundo desvia dos obstáculos e atravessa o riacho pela ponte.',
+    async run(w) {
+      camAt(48, 0, 2, 1.7);
+      const l = agentsList();
+      l.slice(0, 3).forEach((p, i) => { const s = world.seats[(i * 3 + 4) % world.seats.length]; place(p, s.pos.x, s.pos.z, s.face); s.owner = p.a.id; p.seat = s; p.restKind = 'fountain'; });
+      const walker = l[3];
+      if (walker) { place(walker, 28, 0, Math.PI / 2); goTo(walker, V3(58, 0, -8), 0, 'Wave'); }
+    } },
+  { kicker: 'Integrações', title: '📋 Jira e 💬 Slack no escritório', ms: 14e3, side: false,
+    text: 'Um quadro com as minhas issues do Jira e uma TV com as mensagens do Slack, atualizados sozinhos. O agente que mexe numa issue aparece no card.',
+    async run(w) {
+      focusOn(world.jiraBoard.mesh);
+      await w(7000);
+      focusOn(world.slackTV.mesh);
+    } },
+  { kicker: 'Interação', title: '🖥️ O terminal de cada agente', ms: 18e3, side: true,
+    text: 'Clicando num agente, abre o terminal da sessão dele. Dá para mandar mensagem por aqui, e se ele estiver ocupado, a mensagem entra na fila.',
+    async run(w) {
+      const main = people.get('main');
+      if (!main) return;
+      place(main, 2, 18, .4);
+      select(main);
+      camAt(5, 2, 15, 2.2);
+      const typeIn = async text => { $('cText').value = ''; for (const ch of text) { $('cText').value += ch; await w(45); } };
+      await w(1200); await typeIn('Revisa o PR #42 e roda os testes');
+      demoSend('main', $('cText').value); $('cText').value = '';
+      await w(1800); await typeIn('Depois abre o PR com o resumo');
+      demoSend('main', $('cText').value); $('cText').value = '';
+    } },
+  { kicker: 'De qualquer lugar', title: '💬 Falando com os agentes pelo Slack', ms: 16e3, side: false,
+    text: 'Uma mensagem direta para o bot lista os agentes com o contexto do que cada um está fazendo, e manda tarefas para eles.',
+    async run(w) {
+      deselect();
+      camAt(16, 0, 0, .95);
+      $('slackDemo').hidden = false; $('slackDemo').innerHTML = '<div class="sd-h">Mensagem direta · Agents do Wash</div>';
+      const lines = [
+        ['você', 'lista'],
+        ['bot', '<b>Agentes rodando (2)</b><br>1. 👑 <b>Bia Kernel</b> · 🟢 trabalhando · 🔧 Bash · go test<br>2. 👑 <b>Zeca Cache</b> · 🟠 aguardando você'],
+        ['você', '1: roda os testes de novo'],
+        ['bot', '🕒 <b>Bia Kernel</b> está ocupada. Sua mensagem é a nº 1 da fila.'],
+        ['bot', '✅ <b>Bia Kernel</b> respondeu: todos os 42 testes passaram.'],
+      ];
+      for (const [who, html] of lines) {
+        await w(2200);
+        const el = document.createElement('div'); el.className = 'sd-m ' + (who === 'bot' ? 'bot' : 'me');
+        el.innerHTML = `<b class="sd-who">${who === 'bot' ? '🤖 Agents do Wash' : '🧑 você'}</b><div>${html}</div>`;
+        $('slackDemo').appendChild(el);
+      }
+    },
+    leave() { $('slackDemo').hidden = true; } },
+  { kicker: 'Agents do Wash', title: 'Obrigado!', ms: 12e3, side: false,
+    text: 'Código aberto: github.com/washingtonsarago/agents-do-wash',
+    async run(w) {
+      agentsList().forEach(p => { p.lastEvent = performance.now(); p.restKind = null; });
+      NPCS.forEach(n => { n.scripted = false; n.until = 0; });
+      camAt(16, 0, 0, .95);
+    } },
+];
+
+let tourTimer = null, tourToken = 0, tourLeft = 0, tourStepStart = 0, tourPaused = false;
+function tourWait(token) { return ms => new Promise((res, rej) => setTimeout(() => token === tourToken ? res() : rej('cancelado'), ms)); }
+function tourShow(i) {
+  const prev = TOUR_STEPS[tour.i];
+  prev?.leave?.();
+  tour.i = Math.max(0, Math.min(TOUR_STEPS.length - 1, i));
+  const st = TOUR_STEPS[tour.i];
+  const token = ++tourToken;
+  $('tourKicker').textContent = `${st.kicker} · ${tour.i + 1}/${TOUR_STEPS.length}`;
+  $('tourTitle').textContent = st.title;
+  $('tourText').textContent = st.text;
+  sideVisible(st.side);
+  stopFollow(); focused = null;
+  if (tour.i < TOUR_STEPS.length - 1) NPCS.forEach(npcAway); // personagens fora de quadro; cada cena chama quem precisa
+  st.run(tourWait(token)).catch(() => {});
+  clearTimeout(tourTimer);
+  tourLeft = st.ms; tourStepStart = performance.now(); tourPaused = false;
+  $('tourBar').style.transition = 'none'; $('tourBar').style.width = '0%';
+  requestAnimationFrame(() => { $('tourBar').style.transition = `width ${st.ms}ms linear`; $('tourBar').style.width = '100%'; });
+  tourTimer = setTimeout(tourNext, st.ms);
+}
+function tourNext() { if (tour.i >= TOUR_STEPS.length - 1) return stopTour(); tourShow(tour.i + 1); }
+function tourPause() {
+  if (!tourPaused) {
+    tourPaused = true; clearTimeout(tourTimer);
+    tourLeft -= performance.now() - tourStepStart;
+    const w = getComputedStyle($('tourBar')).width; $('tourBar').style.transition = 'none'; $('tourBar').style.width = w;
+    $('tourPause').hidden = false;
+  } else {
+    tourPaused = false; tourStepStart = performance.now(); $('tourPause').hidden = true;
+    $('tourBar').style.transition = `width ${tourLeft}ms linear`; $('tourBar').style.width = '100%';
+    tourTimer = setTimeout(tourNext, tourLeft);
+  }
+}
+function startTour() {
+  if (!DEMO) { location.href = '?demo&tour'; return; } // a apresentação usa o modo demo (dados de exemplo)
+  tour.on = true; tour.i = -1;
+  tour.skinBefore = skin; // o tour mostra cada um no seu estilo e, no fim, devolve o visual de antes
+  if (skin !== 'proprio') { $('skin').value = 'proprio'; setSkin('proprio'); }
+  document.body.classList.add('touring');
+  $('tour').hidden = false;
+  tourShow(0);
+}
+function stopTour() {
+  TOUR_STEPS[tour.i]?.leave?.();
+  tour.on = false; ++tourToken; clearTimeout(tourTimer);
+  document.body.classList.remove('touring');
+  $('tour').hidden = true; $('tourPause').hidden = true; sideVisible(true);
+  NPCS.forEach(n => { n.scripted = false; n.until = 0; });
+  agentsList().forEach(p => { p.lastEvent = performance.now(); });
+  if (tour.skinBefore && skin !== tour.skinBefore) { $('skin').value = tour.skinBefore; setSkin(tour.skinBefore); }
+}
+addEventListener('keydown', e => {
+  if (!tour.on || /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName)) return;
+  if (e.key === 'ArrowRight') { e.preventDefault(); tourShow(tour.i + 1); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); tourShow(tour.i - 1); }
+  else if (e.key === ' ') { e.preventDefault(); tourPause(); }
+  else if (e.key === 'h' || e.key === 'H') $('tourCap').classList.toggle('hidden');
+  else if (e.key === 'Escape') { e.stopImmediatePropagation(); stopTour(); }
+}, true);
+$('tourBtn').onclick = startTour;
+if (TOUR && DEMO) setTimeout(startTour, 3500); // espera os agentes entrarem
+if (window.__agentWorld) Object.assign(window.__agentWorld, { tourShow, stopTour, TOUR_STEPS, tourState: tour }); // para depurar
 
 // ---------- loop ----------
 const clock = new THREE.Clock();
