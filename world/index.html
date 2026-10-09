@@ -14,6 +14,7 @@
   #hud { position:fixed; top:16px; left:16px; display:flex; gap:10px; align-items:center; pointer-events:none; }
   #hud h1 { margin:0; font-size:18px; letter-spacing:-.02em; }
   #home { pointer-events:auto; border:0; cursor:pointer; font:inherit; }
+  #skin { pointer-events:auto; border:0; cursor:pointer; font:inherit; color:var(--ink); appearance:none; padding-right:14px; }
   .pill { background:var(--panel); backdrop-filter: blur(8px); padding:6px 12px; border-radius:999px;
     box-shadow:0 2px 10px rgba(0,0,0,.06); font-variant-numeric: tabular-nums; }
   #status::before { content:'●'; margin-right:6px; color:#c9c4bb; }
@@ -86,6 +87,7 @@
   <span id="status" class="pill">conectando…</span>
   <span id="tokens" class="pill">0 tokens</span>
   <span id="botpill" class="pill" hidden></span>
+  <select id="skin" class="pill" title="Visual dos agentes"></select>
   <button id="home" class="pill" title="Visão geral">🏠</button>
 </div>
 <div id="side">
@@ -113,7 +115,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildWorld } from './office.js';
-import { makeBuddy } from './buddy.js';
+import { makeBuddy, SKINS } from './buddy.js';
 
 // ---------- cena ----------
 const host = document.getElementById('scene');
@@ -204,12 +206,25 @@ const PALETTE = ['#6a9bd8', '#7bb37b', '#b07cc6', '#e7a33e', '#4fb3b3', '#e46a8f
 const hash = s => [...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 const colorFor = a => a.kind === 'main' ? '#3d6fb6' : PALETTE[hash(a.type) % PALETTE.length];
 
+// visual dos agentes (clássico, capas, armaduras), lembrado neste navegador
+let skin = 'classico';
+try { if (SKINS[localStorage.getItem('aw-skin')]) skin = localStorage.getItem('aw-skin'); } catch {}
+function setSkin(next) {
+  skin = next;
+  try { localStorage.setItem('aw-skin', next); } catch {}
+  for (const p of people.values()) { // troca o corpo de cada um, mantendo posição, nome e balão
+    p.g.remove(p.buddy.root);
+    p.buddy = makeBuddy({ color: p.color, main: p.a.kind === 'main', seed: hash(p.a.id), skin });
+    p.g.add(p.buddy.root);
+  }
+}
+
 const people = new Map();
 const known = new Map(); // id -> info do agente (para recriar quem saiu e voltou)
 function makePerson(a) {
   const color = colorFor(a);
   const g = new THREE.Group();
-  const buddy = makeBuddy({ color, main: a.kind === 'main', seed: hash(a.id) });
+  const buddy = makeBuddy({ color, main: a.kind === 'main', seed: hash(a.id), skin });
   g.add(buddy.root);
   const name = label(a.kind === 'main' ? `👑 ${a.name}` : a.name, { size: 22 });
   name.position.y = 4.2; g.add(name);
@@ -587,6 +602,10 @@ renderer.domElement.addEventListener('pointerup', e => {
     if (o) return select(p);
   }
 });
+
+$('skin').innerHTML = Object.entries(SKINS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+$('skin').value = skin;
+$('skin').onchange = e => setSkin(e.target.value);
 
 window.__agentWorld = { scene, people, world, camera, controls, focusOn }; // para depurar no console
 

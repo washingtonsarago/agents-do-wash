@@ -20,6 +20,7 @@ Um escritório 3D com jardim onde seus agentes do Claude Code (bonequinhos amare
 - **Observador**: Node puro, zero dependências, só escuta em `127.0.0.1`. Lê os transcripts e recebe os hooks; a única ação que ele executa é o envio de mensagens (`claude -p --resume`), protegido por token.
 - **Duas fontes**: os transcripts JSONL (sempre) e os hooks (opcional, instantâneo). Eventos repetidos são descartados pelo `tool_use_id`.
 - **Mundo**: Three.js via CDN, sem build. `world/office.js` monta o cenário; `world/buddy.js`, os bonequinhos com animação procedural (andar, correr, sentar, acenar, pular, dançar…).
+- **Visuais**: um seletor no topo troca o visual dos agentes: 🟡 Clássico (cápsula de macacão), 🦸 Capas (estilo DC: capa esvoaçante, máscara, emblema geométrico) e 🤖 Armaduras (estilo Marvel: visor, núcleo de energia, ombreiras). São personagens originais, só inspirados no estilo de cada editora; nenhum personagem, nome ou símbolo oficial é usado.
 - **Cenário**: escritório com 36 mesas em 6 ilhas, biblioteca, sala de servidores, sala de reunião com quadro, copa, relógio com a hora real. Pela porta de vidro sai-se para o jardim: riacho, ponte em arco, chafariz com bancos, árvores e flores.
 
 ## Rodar
