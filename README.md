@@ -9,9 +9,40 @@ Um escritório 3D com jardim onde seus agentes do Claude Code (bonequinhos amare
 | ![Bonequinhos trabalhando no escritório](docs/screenshots/bonequinhos.jpg) | ![Jardim com riacho, ponte e chafariz](docs/screenshots/jardim.jpg) |
 | **Escritório**: cada agente vai até a estação da ferramenta que está usando | **Jardim**: agentes ociosos atravessam a ponte e descansam no chafariz |
 | ![Terminal da sessão no site](docs/screenshots/terminal.jpg) | ![Quadro Kanban do Jira](docs/screenshots/jira.jpg) |
-| **Terminal**: histórico e ao vivo de cada sessão, com envio de mensagens | **Jira**: suas issues, com destaque para as que os agentes mexeram |
+| **Terminal**: histórico e ao vivo de cada sessão; mensagens para um agente ocupado entram na fila 🕒 | **Jira**: suas issues, com destaque para as que os agentes mexeram |
 
-<sub>Prints do modo demo (`/?demo`), com dados fictícios.</sub>
+### Visuais de heróis
+
+Um seletor no topo troca o visual de todos os agentes. Cada tipo de agente ganha as cores de um herói conhecido.
+
+![Heróis de capa: cores de Superman, Flash, Lanterna Verde, Mulher-Maravilha, Aquaman e Batman](docs/screenshots/herois-capas.png)
+**🦸 Capas (estilo DC)**: capa que esvoaça ao correr, máscara, cinto e emblema geométrico
+
+![Heróis de armadura: cores de Homem de Ferro, Homem-Aranha, Pantera Negra, Hulk, Thor e Capitão América](docs/screenshots/herois-armaduras.png)
+**🤖 Armaduras (estilo Marvel)**: visor de lentes, núcleo de energia, ombreiras; escudo e capa em alguns
+
+### Pelo Slack
+
+```
+você:  lista
+bot:   Agentes rodando (2)
+
+       1. 👑 dev-performance-analyzer `69b2d1a6` · 🟢 trabalhando · ativa agora
+             📁 ~/repo/dev-performance-analyzer
+             📋 pedido há 10 min: Fechar os dados de setembro e reprocessar os unmatched
+             🔧 última ação agora: Bash · Mede o progresso do reprocessamento
+             👥 subagents (1):
+                   • python-engineer — Telemetria: coletar unmatched · 🟢 · Read telemetry.py
+
+       2. 👑 refinmulnivel `a1b2c3d4` · 🟠 aguardando você · ativa há 1 min
+             ❗ Permissão: Bash node replay.cjs
+
+você:  1: roda os testes de novo
+bot:   🕒 dev-performance-analyzer está ocupado. Sua mensagem é a nº 1 da fila…
+bot:   ✅ dev-performance-analyzer respondeu: Todos os 42 testes passaram.
+```
+
+<sub>Prints do modo demo (`/?demo`), com dados fictícios; a conversa do Slack é um exemplo.</sub>
 
 ## Arquitetura
 

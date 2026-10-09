@@ -543,19 +543,32 @@ function demoTerm(ev) {
 }
 function deselect() { selected = null; ring.visible = false; $('composer').hidden = true; }
 
+// modo demo: simula o envio, com fila quando o agente ainda está "respondendo"
+const demoQueues = new Map();
+function demoSend(id, text) {
+  const q = demoQueues.get(id) || [];
+  demoQueues.set(id, q);
+  q.push(text);
+  if (q.length > 1) { handle({ id, kind: 'sendQueued', text, position: q.length - 1, via: 'site' }); return; }
+  const run = () => {
+    const t = q[0];
+    handle({ id, kind: 'sendStart', text: t, via: 'site' });
+    if (selected?.a.id === id) termAppend([{ t: 'user', text: t }]);
+    setTimeout(() => {
+      handle({ id, kind: 'say', text: 'Feito! (resposta simulada no modo demo)' });
+      handle({ id, kind: 'sendDone', ok: true, text: 'Feito! (resposta simulada no modo demo)' });
+      q.shift();
+      if (q.length) setTimeout(run, 800);
+    }, 6000);
+  };
+  run();
+}
+
 async function send() {
   const p = selected, text = $('cText').value.trim();
   if (!p || !text) return;
   $('cSend').disabled = true;
-  if (DEMO) {
-    handle({ id: p.a.id, kind: 'sendStart', text });
-    termAppend([{ t: 'user', text }]);
-    setTimeout(() => {
-      handle({ id: p.a.id, kind: 'say', text: 'Feito! (resposta simulada no modo demo)' });
-      handle({ id: p.a.id, kind: 'sendDone', ok: true, text: 'Feito! (resposta simulada no modo demo)' });
-    }, 3000);
-    $('cText').value = ''; $('cSend').disabled = false; return;
-  }
+  if (DEMO) { demoSend(p.a.id, text); $('cText').value = ''; $('cSend').disabled = false; return; }
   try {
     const r = await fetch('/send', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-AW-Token': TOKEN },
       body: JSON.stringify({ agentId: p.a.id, text }) });
