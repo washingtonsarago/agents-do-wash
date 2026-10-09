@@ -268,7 +268,7 @@ export function makeBuddy({ color, main = false, seed = 1, skin = 'classico', pa
     legs(dark, new THREE.BoxGeometry(.34, .18, .44), trim);
   } else if (skin === 'cto') {
     // ---------- o CTO: bem musculoso, roupa de academia (regata, shorts, tênis neon, faixa) e coqueteleira ----------
-    const skinM = mat('#e2b48f'), tank = mat('#2d3142', { roughness: .8 }), accent = mat('#ff5a36'), shorts = mat('#16181d'), hairM = mat('#1e1a17');
+    const skinM = mat('#e2b48f'), tank = mat('#2d3142', { roughness: .8 }), accent = mat('#ff5a36'), shorts = mat('#16181d'), hairM = mat('#a9abaf'), browM = mat('#7c7e82');
     const TOP = 1.08, BOT = .62, Y0 = 1.15, H = 1.25, DEPTH = .74;
     add(body, new THREE.CylinderGeometry(TOP, BOT, H, 28), tank, 0, Y0 + H / 2, 0).scale.z = DEPTH; // tronco em V (regata)
     add(body, new THREE.SphereGeometry(TOP, 28, 12, 0, Math.PI * 2, 0, Math.PI / 2), skinM, 0, Y0 + H - .02, 0).scale.set(1, .26, DEPTH); // ombros à mostra
@@ -284,11 +284,12 @@ export function makeBuddy({ color, main = false, seed = 1, skin = 'classico', pa
     const HY = Y0 + H + .55;
     add(body, new THREE.CylinderGeometry(.3, .38, .36, 16), skinM, 0, Y0 + H + .12, 0);
     add(body, new THREE.SphereGeometry(.5, 24, 18), skinM, 0, HY, 0).scale.set(.94, 1.05, .95);
-    add(body, new THREE.SphereGeometry(.512, 24, 12, 0, Math.PI * 2, 0, Math.PI * .3), hairM, 0, HY + .08, -.02); // cabelo curtinho
+    add(body, new THREE.SphereGeometry(.515, 24, 12, 0, Math.PI * 2, 0, Math.PI * .36), hairM, 0, HY + .06, -.02); // cabelo grisalho
+    for (const sd of [-1, 1]) add(body, new THREE.BoxGeometry(.06, .24, .24), mat('#dcdde0'), sd * .47, HY + .1, -.02); // têmporas mais brancas
     add(body, new THREE.CylinderGeometry(.505, .505, .12, 24, 1, true), accent, 0, HY + .2, 0); // faixa na testa
     for (const sd of [-1, 1]) {
       add(body, new THREE.SphereGeometry(.09, 10, 8), skinM, sd * .47, HY, 0);
-      const brow = add(body, new THREE.BoxGeometry(.17, .045, .04), hairM, sd * .16, HY + .1, .45); brow.rotation.z = sd * .28; // cara de bravo
+      const brow = add(body, new THREE.BoxGeometry(.17, .045, .04), browM, sd * .16, HY + .1, .45); brow.rotation.z = sd * .28; // cara de bravo
     }
     for (const ex of [-.16, .16]) blinkEye(ex, HY + .02, .33, true, .41);
     add(body, new THREE.BoxGeometry(.2, .035, .04), mat('#8a3b2e'), 0, HY - .17, .45); // boca séria

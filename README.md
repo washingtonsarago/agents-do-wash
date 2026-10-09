@@ -114,7 +114,7 @@ O agente concorda e responde ("Anotado!"). Também é só visual, sem custo de t
 
 ## O CTO 💪
 
-Bem musculoso, de regata, shorts, faixa na testa, munhequeira, tênis neon e coqueteleira de whey. Dá bronca em todo mundo:
+Bem musculoso e grisalho, de regata, shorts, faixa na testa, munhequeira, tênis neon e coqueteleira de whey. Dá bronca em todo mundo:
 nos agentes ("Bora, Bia! Mais uma série de testes!"), no chefe ("Chefe, menos bronca e mais entrega!"), no head de segurança
 ("Segurança, fala português com o time!") e até no robô de limpeza. Quem leva bronca para, ouve e responde
 ("Sim, chefe do chefe!", "Ok, ok… em português!"). O botão 💪 no topo liga e desliga.
