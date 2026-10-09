@@ -13,8 +13,8 @@
   #scene { position:fixed; inset:0; }
   #hud { position:fixed; top:16px; left:16px; display:flex; gap:10px; align-items:center; pointer-events:none; }
   #hud h1 { margin:0; font-size:18px; letter-spacing:-.02em; }
-  #home, #bossBtn { pointer-events:auto; border:0; cursor:pointer; font:inherit; }
-  #bossBtn.off { opacity:.45; }
+  #home, #bossBtn, #secBtn { pointer-events:auto; border:0; cursor:pointer; font:inherit; }
+  #bossBtn.off, #secBtn.off { opacity:.45; }
   #skin { pointer-events:auto; border:0; cursor:pointer; font:inherit; color:var(--ink); appearance:none; padding-right:14px; }
   .pill { background:var(--panel); backdrop-filter: blur(8px); padding:6px 12px; border-radius:999px;
     box-shadow:0 2px 10px rgba(0,0,0,.06); font-variant-numeric: tabular-nums; }
@@ -92,6 +92,7 @@
   <span id="botpill" class="pill" hidden></span>
   <select id="skin" class="pill" title="Visual dos agentes"></select>
   <button id="bossBtn" class="pill" title="Liga/desliga o chefe">👔</button>
+  <button id="secBtn" class="pill" title="Liga/desliga o head de segurança">🛡️</button>
   <button id="home" class="pill" title="Visão geral">🏠</button>
 </div>
 <div id="side">
@@ -302,6 +303,7 @@ function goRest(p) { // ocioso: vai sentar num banco do chafariz
 
 function act(p, tool, target) {
   const st = STATION_FOR(tool);
+  p.lastTool = tool;
   p.lastEvent = performance.now();
   p.attention = false;
   release(p);
@@ -790,121 +792,149 @@ function startDemo() {
 }
 const now = () => performance.now();
 
-// ---------- o chefe ----------
-// Personagem só visual (não é sessão do Claude, não gasta token): patrulha o escritório e dá bronca,
-// de preferência em quem está no chafariz ou acabou de errar.
+// ---------- personagens do escritório (chefe, head de segurança) ----------
+// Só visuais: não são sessões do Claude e não gastam token. Andam pelo escritório (desviando de tudo),
+// escolhem alguém de tempos em tempos, vão até a pessoa e falam algo; a pessoa reage.
+const pickOne = list => list[Math.floor(Math.random() * list.length)];
+const firstName = p => p.a.name.split(' ')[0];
+const recentlyFailed = (p, now) => p.failedAt && now - p.failedAt < 90e3;
+
+const NPCS = [];
+function createNpc(cfg) {
+  const key = 'aw-npc-' + cfg.id;
+  let on = true;
+  try { on = localStorage.getItem(key) !== 'off'; } catch {}
+  const g = new THREE.Group();
+  const buddy = makeBuddy({ color: '#888', skin: cfg.skin });
+  g.add(buddy.root);
+  const tag = label(cfg.tag, { size: 22, bg: 'rgba(43,42,51,.85)', color: '#fff' });
+  tag.position.y = cfg.tagY || 4.8; g.add(tag);
+  g.position.copy(cfg.spawn || DOOR);
+  scene.add(g);
+  const now0 = performance.now();
+  const npc = { cfg, g, buddy, path: [], target: g.position.clone(), state: 'pause', until: now0 + (cfg.firstDelay || 4000),
+    victim: null, nextTalk: now0 + (cfg.firstTalk || 8000), bubble: null, bubbleUntil: 0, moving: false };
+  npc.say = (text, ms = 3800) => {
+    if (npc.bubble) g.remove(npc.bubble);
+    npc.bubble = label(text, { size: 22, maxW: 400, bg: cfg.bubbleBg || 'rgba(255,248,225,.97)' });
+    npc.bubble.position.y = (cfg.tagY || 4.8) + 1.1; g.add(npc.bubble);
+    npc.bubbleUntil = performance.now() + ms;
+  };
+  const go = pos => { npc.target.copy(pos); npc.path = world.route(g.position, pos); };
+  const toward = p => { const dir = g.position.clone().sub(p.g.position).setY(0).normalize(); return p.g.position.clone().addScaledVector(dir, 1.9); };
+  const btn = $(cfg.button);
+  btn.classList.toggle('off', !on);
+  btn.onclick = () => { on = !on; btn.classList.toggle('off', !on); try { localStorage.setItem(key, on ? 'on' : 'off'); } catch {} };
+  const _v = new THREE.Vector3();
+  npc.update = (dt, t, now) => {
+    g.visible = on;
+    if (!on) return;
+    if (npc.victim && npc.state === 'walk') { // segue a pessoa se ela se mexer
+      if (!people.has(npc.victim.a.id)) { npc.victim = null; npc.until = now; }
+      else if (npc.victim.g.position.distanceTo(npc.target) > 2.6) go(toward(npc.victim));
+    }
+    let wp = npc.path[0];
+    while (wp && Math.hypot(wp.x - g.position.x, wp.z - g.position.z) < .15) { npc.path.shift(); wp = npc.path[0]; }
+    if (wp) {
+      _v.set(wp.x - g.position.x, 0, wp.z - g.position.z);
+      const dist = _v.length(), ang = Math.atan2(_v.x, _v.z);
+      g.position.addScaledVector(_v.normalize(), Math.min(dist, (cfg.speed || 4.5) * dt));
+      g.rotation.y += Math.atan2(Math.sin(ang - g.rotation.y), Math.cos(ang - g.rotation.y)) * .15;
+      buddy.play('Walking'); npc.moving = true;
+    } else {
+      if (npc.moving) { // chegou
+        npc.moving = false;
+        if (npc.victim && people.has(npc.victim.a.id)) {
+          const vp = npc.victim.g.position;
+          g.rotation.y = Math.atan2(vp.x - g.position.x, vp.z - g.position.z);
+          cfg.talkTo(npc, npc.victim, now);
+          npc.until = now + 3400; npc.nextTalk = now + cfg.cooldown[0] + Math.random() * (cfg.cooldown[1] - cfg.cooldown[0]);
+        } else {
+          npc.until = now + 1800 + Math.random() * 2500;
+          if (Math.random() < (cfg.mutterChance || .25)) npc.say(cfg.icon + ' ' + pickOne(cfg.mutters), 3000);
+        }
+      }
+      if (!buddy.busy) buddy.play('Idle');
+      if (now > npc.until) {
+        npc.victim = now > npc.nextTalk ? cfg.pickTarget(now) : null;
+        go(npc.victim ? toward(npc.victim) : patrolPoint());
+        npc.state = 'walk';
+      }
+    }
+    g.position.y = world.groundY(g.position.x, g.position.z);
+    buddy.update(dt, t);
+    if (npc.bubble && now > npc.bubbleUntil) { g.remove(npc.bubble); npc.bubble = null; }
+  };
+  NPCS.push(npc);
+  return npc;
+}
+function patrolPoint() {
+  if (Math.random() < .45) return pickOne(desks).home.clone().add(new THREE.Vector3(1.6, 0, 0));
+  return world.standAt(pickOne(['library', 'terminal', 'jira', 'meeting', 'mail', 'web', 'slack']), 4 + Math.floor(Math.random() * 3));
+}
+// sorteio com peso: cada pessoa entra na "urna" tantas vezes quanto o peso
+function weightedPick(weightOf, now) {
+  const urn = [];
+  for (const p of people.values()) { if (p.leaving) continue; const w = weightOf(p, now); for (let i = 0; i < w; i++) urn.push(p); }
+  return urn.length ? pickOne(urn) : null;
+}
+function react(p, emoteName, reply, after) {
+  setTimeout(() => {
+    if (!people.has(p.a.id)) return;
+    emote(p, emoteName); say(p, reply, 3000);
+    after?.(p);
+  }, 900);
+}
+
+// 👔 o chefe: dá bronca, de preferência em quem está no chafariz ou acabou de errar
 const SCOLD = {
   rest: ['Ô {n}, chafariz é na hora do almoço!', '{n}, o deploy não vai se fazer sozinho!', 'Levanta daí, {n}! Tem PR esperando.', '{n}, o descanso já acabou faz tempo!'],
   fail: ['{n}, esse teste quebrou de novo?', 'Quem subiu esse bug? Hein, {n}?', '{n}, roda o lint antes de commitar!', 'Vermelho no CI, {n}? Bora consertar!'],
   work: ['Bora, {n}! Cadê os testes?', '{n}, isso entra na sprint?', 'Commit pequeno, {n}! Commit pequeno!', '{n}, documentou isso?', 'Prazo é sexta, {n}!', '{n}, cadê o README?'],
 };
-const REPLIES = ['Já vou, chefe!', 'Tô nisso!', 'Foi o estagiário!', 'Só mais 5 minutinhos…', 'Sim, senhor!', 'Já tá no PR!', 'Juro que roda na minha máquina!'];
-const MUTTER = ['Hmm…', 'Tudo sob controle?', 'Cadê o café?', 'Quem mexeu na produção?'];
-const pickOne = list => list[Math.floor(Math.random() * list.length)];
+const boss = createNpc({
+  id: 'chefe', skin: 'chefe', tag: '👔 Chefe', icon: '👔', button: 'bossBtn', speed: 4.2, cooldown: [12e3, 22e3],
+  mutters: ['Hmm…', 'Tudo sob controle?', 'Cadê o café?', 'Quem mexeu na produção?'],
+  pickTarget: now => weightedPick((p, n) => p.seat || recentlyFailed(p, n) ? 4 : p.g.position.x < 30 ? 1 : 0, now),
+  talkTo(npc, p, now) {
+    const kind = p.seat ? 'rest' : recentlyFailed(p, now) ? 'fail' : 'work';
+    const phrase = pickOne(SCOLD[kind]).replace('{n}', firstName(p));
+    npc.buddy.emote('Point'); npc.say('👔 ' + phrase);
+    feedSys(`👔 <b>Chefe</b> para <b>${esc(p.a.name)}</b>: “${esc(phrase)}”`, '#7aa0d4');
+    react(p, 'Jump', '😰 ' + pickOne(['Já vou, chefe!', 'Tô nisso!', 'Foi o estagiário!', 'Só mais 5 minutinhos…', 'Sim, senhor!', 'Já tá no PR!', 'Juro que roda na minha máquina!']), q => {
+      if (q.seat) { release(q); q.lastEvent = performance.now(); q.typing = true; goTo(q, q.home, q.desk.face, null); }
+      q.failedAt = 0;
+    });
+  },
+});
 
-let bossOn = true;
-try { bossOn = localStorage.getItem('aw-boss') !== 'off'; } catch {}
-const boss = (() => {
-  const g = new THREE.Group();
-  const buddy = makeBuddy({ color: '#bcd4ef', skin: 'chefe' });
-  g.add(buddy.root);
-  const tag = label('👔 Chefe', { size: 22, bg: 'rgba(43,42,51,.85)', color: '#fff' });
-  tag.position.y = 4.9; g.add(tag);
-  g.position.copy(DOOR);
-  scene.add(g);
-  return { g, buddy, path: [], target: DOOR.clone(), state: 'pause', until: performance.now() + 4000,
-    victim: null, nextScold: performance.now() + 8000, bubble: null, bubbleUntil: 0, moving: false };
-})();
-function bossSay(text, ms = 3500) {
-  if (boss.bubble) boss.g.remove(boss.bubble);
-  boss.bubble = label(text, { size: 22, maxW: 380, bg: 'rgba(255,248,225,.97)' });
-  boss.bubble.position.y = 6; boss.g.add(boss.bubble);
-  boss.bubbleUntil = performance.now() + ms;
-}
-function bossGo(pos) { boss.target.copy(pos); boss.path = world.route(boss.g.position, pos); }
-function patrolPoint() {
-  if (Math.random() < .45) return pickOne(desks).home.clone().add(new THREE.Vector3(1.6, 0, 0));
-  return world.standAt(pickOne(['library', 'terminal', 'jira', 'meeting', 'mail', 'web', 'slack']), 4 + Math.floor(Math.random() * 3));
-}
-const recentlyFailed = (p, now) => p.failedAt && now - p.failedAt < 90e3;
-function pickVictim(now) {
-  const list = [];
-  for (const p of people.values()) {
-    if (p.leaving) continue;
-    const w = p.seat || recentlyFailed(p, now) ? 4 : p.g.position.x < 30 ? 1 : 0; // chafariz e erro têm prioridade
-    for (let i = 0; i < w; i++) list.push(p);
-  }
-  return list.length ? pickOne(list) : null;
-}
-function scold(p, now) {
-  const kind = p.seat ? 'rest' : recentlyFailed(p, now) ? 'fail' : 'work';
-  const phrase = pickOne(SCOLD[kind]).replace('{n}', p.a.name.split(' ')[0]);
-  boss.buddy.emote('Point');
-  bossSay('👔 ' + phrase);
-  feedSys(`👔 <b>Chefe</b> para <b>${esc(p.a.name)}</b>: “${esc(phrase)}”`, '#7aa0d4');
-  setTimeout(() => { // susto e resposta
-    if (!people.has(p.a.id)) return;
-    emote(p, 'Jump'); say(p, '😰 ' + pickOne(REPLIES), 3000);
-    if (p.seat) { release(p); p.lastEvent = performance.now(); p.typing = true; goTo(p, p.home, p.desk.face, null); }
-    p.failedAt = 0;
-  }, 900);
-}
-const _bossTo = new THREE.Vector3();
-function updateBoss(dt, t, now) {
-  boss.g.visible = bossOn;
-  if (!bossOn) return;
-  if (boss.victim && boss.state === 'walk') { // segue a vítima se ela se mexer
-    if (!people.has(boss.victim.a.id)) { boss.victim = null; boss.until = now; }
-    else {
-      const vp = boss.victim.g.position;
-      if (vp.distanceTo(boss.target) > 2.6) {
-        const dir = boss.g.position.clone().sub(vp).setY(0).normalize();
-        bossGo(vp.clone().addScaledVector(dir, 1.9));
-      }
-    }
-  }
-  let wp = boss.path[0];
-  while (wp && Math.hypot(wp.x - boss.g.position.x, wp.z - boss.g.position.z) < .15) { boss.path.shift(); wp = boss.path[0]; }
-  if (wp) {
-    _bossTo.set(wp.x - boss.g.position.x, 0, wp.z - boss.g.position.z);
-    const dist = _bossTo.length(), ang = Math.atan2(_bossTo.x, _bossTo.z);
-    boss.g.position.addScaledVector(_bossTo.normalize(), Math.min(dist, 4.2 * dt)); // passo pesado
-    boss.g.rotation.y += Math.atan2(Math.sin(ang - boss.g.rotation.y), Math.cos(ang - boss.g.rotation.y)) * .15;
-    boss.buddy.play('Walking'); boss.moving = true;
-  } else {
-    if (boss.moving) { // chegou
-      boss.moving = false;
-      if (boss.victim && people.has(boss.victim.a.id)) {
-        const vp = boss.victim.g.position;
-        boss.g.rotation.y = Math.atan2(vp.x - boss.g.position.x, vp.z - boss.g.position.z);
-        scold(boss.victim, now);
-        boss.state = 'scold'; boss.until = now + 3200; boss.nextScold = now + 12e3 + Math.random() * 10e3;
-      } else {
-        boss.state = 'pause'; boss.until = now + 1800 + Math.random() * 2500;
-        if (Math.random() < .25) bossSay('👔 ' + pickOne(MUTTER), 2500);
-      }
-    }
-    if (!boss.buddy.busy) boss.buddy.play('Idle');
-    if (now > boss.until) {
-      boss.victim = now > boss.nextScold ? pickVictim(now) : null;
-      if (boss.victim) {
-        const dir = boss.g.position.clone().sub(boss.victim.g.position).setY(0).normalize();
-        bossGo(boss.victim.g.position.clone().addScaledVector(dir, 1.9));
-      } else bossGo(patrolPoint());
-      boss.state = 'walk';
-    }
-  }
-  boss.g.position.y = world.groundY(boss.g.position.x, boss.g.position.z);
-  boss.buddy.update(dt, t);
-  if (boss.bubble && now > boss.bubbleUntil) { boss.g.remove(boss.bubble); boss.bubble = null; }
-}
-if (window.__agentWorld) Object.assign(window.__agentWorld, { boss, updateBoss }); // para depurar
-$('bossBtn').classList.toggle('off', !bossOn);
-$('bossBtn').onclick = () => {
-  bossOn = !bossOn;
-  $('bossBtn').classList.toggle('off', !bossOn);
-  try { localStorage.setItem('aw-boss', bossOn ? 'on' : 'off'); } catch {}
+// 🛡️ head de segurança: circula dando dicas de segurança, de acordo com o que cada um está fazendo
+const SECURITY = {
+  waiting: ['Lê com calma antes de aprovar, {n}!', '{n}, revisa essa permissão: precisa mesmo?', 'Aprovar no automático não, {n}!'],
+  bash: ['{n}, cuidado com rm -rf!', 'Esse script vem de onde, {n}?', '{n}, nada de curl | sh de fonte estranha!', 'Sudo só se precisar, {n}!'],
+  web: ['{n}, não cola dado sensível em site externo!', 'Confere o domínio antes de clicar, {n}!', '{n}, esse link é confiável?'],
+  general: ['Nunca commite segredo no repositório, {n}!', '{n}, rotacionou aquela chave de API?', 'MFA ligado em tudo, hein {n}?', 'Princípio do menor privilégio, {n}!',
+    '{n}, esse .env não vai pro git, né?', 'Log não é lugar de dado pessoal, {n}!', '{n}, valida toda entrada do usuário!', 'Dependência nova? Roda o audit, {n}!',
+    'Token no código? Nem pensar, {n}!', '{n}, sanitiza essa query!', 'Bloqueia a tela quando sair, {n}!'],
+  team: ['Time: backup testado é backup que existe!', 'Recebeu link estranho? Reporta, não clica!', 'Senha forte e única, pessoal!', 'Segurança é responsabilidade de todo mundo!'],
 };
+const securityKind = p => p.attention ? 'waiting' : /^(Bash|BashOutput|KillShell)$/.test(p.lastTool || '') ? 'bash'
+  : /^(WebFetch|WebSearch)$|claude-in-chrome/.test(p.lastTool || '') ? 'web' : 'general';
+createNpc({
+  id: 'seguranca', skin: 'seguranca', tag: '🛡️ Head de Segurança', icon: '🛡️', button: 'secBtn', speed: 4.6, cooldown: [14e3, 24e3],
+  spawn: new THREE.Vector3(2, 0, 23), firstDelay: 7000, firstTalk: 12000, bubbleBg: 'rgba(225,245,232,.97)', tagY: 4.5,
+  mutters: SECURITY.team, mutterChance: .35,
+  pickTarget: now => weightedPick(p => p.attention ? 4 : securityKind(p) !== 'general' ? 3 : 1, now),
+  talkTo(npc, p) {
+    const phrase = pickOne(SECURITY[securityKind(p)]).replace('{n}', firstName(p));
+    npc.buddy.emote('Point'); npc.say('🛡️ ' + phrase);
+    feedSys(`🛡️ <b>Head de Segurança</b> para <b>${esc(p.a.name)}</b>: “${esc(phrase)}”`, '#3f9e6a');
+    react(p, 'Yes', '👍 ' + pickOne(['Anotado!', 'Boa, vou conferir!', 'Pode deixar!', 'Já ajusto!', 'Valeu pelo toque!']));
+  },
+});
+
+function updateNpcs(dt, t, now) { for (const n of NPCS) n.update(dt, t, now); }
+if (window.__agentWorld) Object.assign(window.__agentWorld, { boss, npcs: NPCS }); // para depurar
 
 // ---------- loop ----------
 const clock = new THREE.Clock();
@@ -963,7 +993,7 @@ renderer.setAnimationLoop(() => {
     if (!people.has(selected.a.id)) deselect();
     else { ring.position.set(selected.g.position.x, selected.g.position.y + .05, selected.g.position.z); ring.scale.setScalar(1 + Math.sin(t * 4) * .06); }
   }
-  updateBoss(dt, t, now);
+  updateNpcs(dt, t, now);
   world.update(t, dt);
   if (camAnim) {
     camAnim.t = Math.min(1, camAnim.t + dt / .8);

@@ -193,6 +193,52 @@ export function makeBuddy({ color, main = false, seed = 1, skin = 'classico', pa
     legs(pants, new THREE.BoxGeometry(.34, .18, .48), mat('#5a3a24'));
     for (const lg of [legL, legR]) lg.scale.set(1.35, 1, 1.35);
     root.scale.setScalar(1.08);
+  } else if (skin === 'seguranca') {
+    // ---------- head de segurança: barba cheia, cabelo escuro, jaqueta puffer preta com capuz ----------
+    const skinM = mat('#e8b896'), hairM = mat('#1f1814'), jacket = mat('#1d1e22', { roughness: .45 }), tee = mat('#f4f4f2');
+    const Y0 = 1.1, H = 1.25;
+    add(body, new THREE.CylinderGeometry(.82, .7, H, 26), jacket, 0, Y0 + H / 2, 0).scale.z = .82; // jaqueta
+    for (let k = 0; k < 4; k++) { // gomos da puffer, abertos na frente (jaqueta aberta)
+      const ring = new THREE.Group(); ring.rotation.x = Math.PI / 2; ring.position.set(0, Y0 + .18 + k * .3, 0); ring.scale.y = .82; body.add(ring);
+      add(ring, new THREE.TorusGeometry(.81 - k * .03, .065, 8, 28, Math.PI * 2 - 1.1), jacket).rotation.z = Math.PI / 2 + .55;
+    }
+    for (const sd of [-1, 1]) add(body, new THREE.BoxGeometry(.1, H - .1, .08), jacket, sd * .26, Y0 + H / 2 + .02, .66); // bordas da jaqueta aberta
+    add(body, new THREE.SphereGeometry(.82, 26, 10, 0, Math.PI * 2, 0, Math.PI / 2), jacket, 0, Y0 + H - .02, 0).scale.set(1, .3, .82); // ombros
+    add(body, new THREE.BoxGeometry(.4, H - .15, .06), tee, 0, Y0 + H / 2 + .05, .64); // camiseta branca
+    add(body, new THREE.BoxGeometry(.03, H - .15, .07), mat('#8a8f99', { metalness: .7, roughness: .3 }), -.2, Y0 + H / 2 + .05, .7); // zíper
+    const hood = add(body, new THREE.TorusGeometry(.42, .16, 10, 20, Math.PI * 1.3), jacket, 0, Y0 + H + .08, -.1); hood.rotation.set(Math.PI / 2 + .25, 0, Math.PI * .85); // capuz
+    // distintivo de segurança no peito (escudo)
+    const sh = new THREE.Shape(); sh.moveTo(0, .13); sh.lineTo(.11, .08); sh.lineTo(.1, -.04); sh.quadraticCurveTo(.05, -.12, 0, -.15); sh.quadraticCurveTo(-.05, -.12, -.1, -.04); sh.lineTo(-.11, .08); sh.closePath();
+    add(body, new THREE.ShapeGeometry(sh), mat('#e7b53a', { metalness: .6, roughness: .3 }), .4, Y0 + H - .35, .64).rotation.y = .3;
+    add(body, new THREE.CylinderGeometry(.75, .62, .4, 20), mat('#2d3038'), 0, Y0 - .18, 0).scale.z = .85; // calça
+    // pescoço e cabeça
+    const HY = Y0 + H + .58;
+    add(body, new THREE.CylinderGeometry(.22, .26, .32, 14), skinM, 0, Y0 + H + .14, 0);
+    add(body, new THREE.SphereGeometry(.5, 24, 18), skinM, 0, HY, 0).scale.set(.92, 1.06, .95);
+    // cabelo escuro, bagunçado no topo
+    add(body, new THREE.SphereGeometry(.52, 24, 12, 0, Math.PI * 2, 0, Math.PI * .4), hairM, 0, HY + .05, -.03).scale.set(.94, 1.1, .98);
+    for (let k = 0; k < 9; k++) { // mechas com volume, bagunçadas
+      const a = (k / 9) * Math.PI * 2;
+      const tuft = add(body, new THREE.SphereGeometry(.17, 10, 8), hairM, Math.sin(a) * .26, HY + .42 + (k % 3) * .04, Math.cos(a) * .2 + .02);
+      tuft.scale.set(1, .7, 1.2); tuft.rotation.set(.4 * Math.cos(a), 0, -.4 * Math.sin(a));
+    }
+    // barba cheia: cobre o queixo e a mandíbula, mais o bigode
+    // barba cheia: do queixo às costeletas, abaixo da boca; bigode por cima; lábios à mostra
+    const beard = add(body, new THREE.SphereGeometry(.53, 26, 14, -Math.PI * .08, Math.PI * 1.16, Math.PI * .6, Math.PI * .36), hairM, 0, HY + .03, .02);
+    beard.scale.set(.95, 1.2, 1.04);
+    for (const sd of [-1, 1]) add(body, new THREE.BoxGeometry(.08, .3, .2), hairM, sd * .43, HY - .04, .14); // costeletas
+    add(body, new THREE.BoxGeometry(.28, .06, .07), hairM, 0, HY - .09, .46); // bigode
+    add(body, new THREE.BoxGeometry(.13, .04, .05), mat('#a86a55'), 0, HY - .155, .45); // lábios
+    for (const sd of [-1, 1]) {
+      add(body, new THREE.SphereGeometry(.09, 10, 8), skinM, sd * .47, HY, 0); // orelhas
+      const brow = add(body, new THREE.BoxGeometry(.16, .045, .04), hairM, sd * .16, HY + .18, .44); brow.rotation.z = sd * .08; // sobrancelhas grossas
+    }
+    for (const ex of [-.16, .16]) blinkEye(ex, HY + .06, .34, true, .41);
+    const hand = { geo: new THREE.SphereGeometry(.15, 12, 10), mat: skinM };
+    armL = limb(-.92, Y0 + H - .12, .62, jacket, hand, .17);
+    armR = limb(.92, Y0 + H - .12, .62, jacket, hand, .17);
+    legs(mat('#2d3038'), new THREE.BoxGeometry(.32, .2, .46), mat('#e9e9e6')); // tênis brancos
+    for (const lg of [legL, legR]) lg.scale.set(1.15, 1, 1.15);
   } else {
     // ---------- clássico: cápsula amarela de macacão ----------
     const overall = mat(color);

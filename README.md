@@ -104,6 +104,14 @@ quem está descansando no chafariz ou acabou de errar ("Ô Bia, chafariz é na h
 responde ("Já vou, chefe!") e, se estava no chafariz, volta para a mesa. É só visual: não é uma sessão do Claude e não gasta token.
 O botão 👔 no topo liga e desliga.
 
+## O head de segurança 🛡️
+
+Barba cheia, jaqueta puffer preta e distintivo no peito: circula pelo escritório dando dicas de segurança de acordo com
+o que cada agente está fazendo. Quem está pedindo permissão ouve "Lê com calma antes de aprovar!", quem está no terminal
+ouve "Cuidado com rm -rf!", quem está na web ouve "Confere o domínio antes de clicar!", e os demais recebem dicas gerais
+("Esse .env não vai pro git, né?", "Rotacionou aquela chave de API?"). Também solta dicas para o time todo.
+O agente concorda e responde ("Anotado!"). Também é só visual, sem custo de token; o botão 🛡️ no topo liga e desliga.
+
 ## Dar nomes aos agentes
 
 No terminal de qualquer agente, clique em ✏️ ao lado do nome, digite e aperte Enter (vazio volta ao nome original).
