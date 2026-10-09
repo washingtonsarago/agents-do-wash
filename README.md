@@ -201,5 +201,5 @@ a cada minuto; quando conectar, aparece **🤖 Slack bot ligado** no topo do sit
 | Outros `mcp__*` (Gmail, Drive…) | 📮 Integrações | Yes |
 | Edit, Write e o resto | ✍️ A própria mesa | senta e digita |
 
-Longe do destino, o bonequinho corre; perto, anda. Sem atividade por 45 s, ele atravessa a ponte e senta num banco do chafariz. Ao terminar o turno (`Stop`), dança na mesa. Depois de 30 min, sai do escritório.
+Todos (agentes e chefe) desviam de mesas, estantes, paredes, riacho, chafariz e árvores: o mapa vira uma grade de obstáculos e cada deslocamento é calculado com A\*, atravessando o riacho só pela ponte. Longe do destino, o bonequinho corre; perto, anda. Sem atividade por 45 s, ele atravessa a ponte e senta num banco do chafariz. Ao terminar o turno (`Stop`), dança na mesa. Depois de 30 min, sai do escritório.
 Na lista de moradores, cada subagent aparece abaixo de quem o criou.

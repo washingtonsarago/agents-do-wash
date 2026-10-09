@@ -369,8 +369,10 @@ export function buildWorld(scene, label) {
   // árvores e flores (fora do riacho, da ponte, do caminho e da praça)
   const freeSpot = (x, z) => Math.abs(x - STREAM_X) > 4 && Math.abs(z) > 3.2 &&
     Math.hypot(x - FOUNTAIN.x, z - FOUNTAIN.z) > 11 && x > 32;
+  const trunks = []; // troncos viram obstáculos na navegação
   function tree(x, z) {
     const s = .8 + rand() * .6;
+    trunks.push([x, z, .35 * s]);
     mesh(new THREE.CylinderGeometry(.22 * s, .32 * s, 2.2 * s, 8), mat('#7a5233'), x, 1.1 * s, z);
     if (rand() < .4) { // pinheiro
       for (let k = 0; k < 3; k++) mesh(new THREE.ConeGeometry((1.7 - k * .4) * s, 1.8 * s, 8), mat(['#3f7d4e', '#4b8f58', '#3a7347'][k], { flatShading: true }), x, (2.2 + k * 1.05) * s, z);
@@ -395,18 +397,114 @@ export function buildWorld(scene, label) {
   const DOOR = new THREE.Vector3(0, 0, 23);
   // altura do chão (sobe na ponte)
   const groundY = (x, z) => x >= BRIDGE.x0 && x <= BRIDGE.x1 && Math.abs(z) < BRIDGE.halfW + .3 ? arcY(x) : 0;
-  // caminho até o destino: atravessa a porta de vidro e a ponte quando precisa
-  const WP = { inDoor: new THREE.Vector3(27.5, 0, 0), outDoor: new THREE.Vector3(33, 0, 0),
-    bridgeIn: new THREE.Vector3(BRIDGE.x0 - .6, 0, 0), bridgeOut: new THREE.Vector3(BRIDGE.x1 + .6, 0, 0) };
+  // ----- mapa de obstáculos (grade de 0,5) + A*: ninguém atravessa mesa, estante, riacho… -----
+  const CELL = .5, GX0 = -31, GZ0 = -33, GW = 244, GH = 132, BODY = .6; // BODY: folga do tamanho do corpo
+  const blocked = new Uint8Array(GW * GH);
+  const cellOf = (x, z) => [Math.floor((x - GX0) / CELL), Math.floor((z - GZ0) / CELL)];
+  const centerOf = (i, j) => [GX0 + (i + .5) * CELL, GZ0 + (j + .5) * CELL];
+  const solidRect = (x0, x1, z0, z1, pad = BODY) => {
+    const [i0, j0] = cellOf(x0 - pad, z0 - pad), [i1, j1] = cellOf(x1 + pad, z1 + pad);
+    for (let j = Math.max(0, j0); j <= Math.min(GH - 1, j1); j++) for (let i = Math.max(0, i0); i <= Math.min(GW - 1, i1); i++) blocked[j * GW + i] = 1;
+  };
+  const solidCircle = (x, z, r, pad = BODY) => {
+    const R = r + pad, [i0, j0] = cellOf(x - R, z - R), [i1, j1] = cellOf(x + R, z + R);
+    for (let j = Math.max(0, j0); j <= Math.min(GH - 1, j1); j++) for (let i = Math.max(0, i0); i <= Math.min(GW - 1, i1); i++) {
+      const [cx, cz] = centerOf(i, j);
+      if ((cx - x) ** 2 + (cz - z) ** 2 <= R * R) blocked[j * GW + i] = 1;
+    }
+  };
+  // fora do chão (escritório: x -30..30, z -24..24; jardim: x 30..90, z -32..32)
+  for (let j = 0; j < GH; j++) for (let i = 0; i < GW; i++) {
+    const [x, z] = centerOf(i, j);
+    const inOffice = x > -30 && x < 30 && z > -24 && z < 24.5, inGarden = x >= 30 && x < 89 && z > -32 && z < 32;
+    if (!inOffice && !inGarden) blocked[j * GW + i] = 1;
+  }
+  solidRect(-31, 31, -26, -23.6, 0); solidRect(-31, -29.7, -26, 26, 0); // paredes
+  solidRect(29.8, 30.2, -24, -3, .35); solidRect(29.8, 30.2, 3, 24.5, .35); // fachada de vidro (porta no meio)
+  for (const pz of [-10, 1, 12]) for (const px of [-8, 8]) solidRect(px - 4.9, px + 4.9, pz - 1.65, pz + 1.65); // ilhas de mesas
+  solidRect(-26.5, -15.5, -24, -22.5); solidRect(-26.4, -24.6, -18.8, -17.2); // biblioteca: estantes e poltrona
+  solidRect(-28.1, -25.9, -5.3, 5.3); // sala de servidores
+  solidRect(11, 17, -23.2, -22.1); solidRect(17, 18.6, -22.6, -21.4); // integrações
+  solidCircle(22, -14, 1.4); // globo
+  solidCircle(-20, 15, 3.0); // mesa de reunião + cadeiras
+  solidRect(18.5, 27.5, 20.8, 22.5); for (const x of [19.5, 22, 24.5]) solidCircle(x, 19.8, .45); // copa
+  for (const [x, z] of [[-28.5, -22.5], [-28.5, 22], [-28.5, -6], [28.5, -22.5], [28.5, 22], [-6, 22.5], [6, 22.5]]) solidCircle(x, z, .6); // vasos
+  solidRect(STREAM_X - 2.9, STREAM_X + 2.9, -33, -BRIDGE.halfW); solidRect(STREAM_X - 2.9, STREAM_X + 2.9, BRIDGE.halfW, 33); // riacho (a ponte fica livre)
+  solidCircle(FOUNTAIN.x, FOUNTAIN.z, 3.8); // chafariz
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2 + Math.PI / 8; solidCircle(FOUNTAIN.x + Math.sin(a) * 7.2, FOUNTAIN.z + Math.cos(a) * 7.2, .9, .3); } // bancos
+  for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2; solidCircle(FOUNTAIN.x + Math.sin(a) * 9.4, FOUNTAIN.z + Math.cos(a) * 9.4, .2, .4); } // postes
+  for (const [x, z, r] of trunks) solidCircle(x, z, r, .4); // árvores
+  const isFree = (i, j) => i >= 0 && j >= 0 && i < GW && j < GH && !blocked[j * GW + i];
+
+  // célula livre mais próxima (para destinos colados em obstáculos: cadeira, banco)
+  function nearestFree(i, j) {
+    if (isFree(i, j)) return [i, j];
+    for (let r = 1; r < 14; r++) {
+      let best = null, bd = Infinity;
+      for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) {
+        if (Math.max(Math.abs(di), Math.abs(dj)) !== r || !isFree(i + di, j + dj)) continue;
+        const d = di * di + dj * dj; if (d < bd) { bd = d; best = [i + di, j + dj]; }
+      }
+      if (best) return best;
+    }
+    return [i, j];
+  }
+  // linha reta livre entre dois pontos (amostrada a cada ¼ de célula)
+  function clearLine(x0, z0, x1, z1) {
+    const steps = Math.ceil(Math.hypot(x1 - x0, z1 - z0) / (CELL / 4));
+    for (let k = 1; k < steps; k++) {
+      const [i, j] = cellOf(x0 + (x1 - x0) * k / steps, z0 + (z1 - z0) * k / steps);
+      if (!isFree(i, j)) return false;
+    }
+    return true;
+  }
+  const gScore = new Float32Array(GW * GH), came = new Int32Array(GW * GH), stamp = new Uint32Array(GW * GH), closed = new Uint32Array(GW * GH);
+  let runId = 0;
+  function astar(si, sj, ti, tj) {
+    runId++;
+    const start = sj * GW + si, goal = tj * GW + ti;
+    const heap = [], push = (f, n) => { heap.push([f, n]); let k = heap.length - 1; while (k > 0) { const p = (k - 1) >> 1; if (heap[p][0] <= heap[k][0]) break; [heap[p], heap[k]] = [heap[k], heap[p]]; k = p; } };
+    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let k = 0; for (;;) { const l = 2 * k + 1, r = l + 1; let m = k; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === k) break; [heap[m], heap[k]] = [heap[k], heap[m]]; k = m; } } return top; };
+    const h = n => { const dx = Math.abs(n % GW - ti), dz = Math.abs(((n / GW) | 0) - tj); return Math.max(dx, dz) + .414 * Math.min(dx, dz); };
+    stamp[start] = runId; gScore[start] = 0; came[start] = -1; push(h(start), start);
+    while (heap.length) {
+      const [, n] = pop();
+      if (closed[n] === runId) continue; // já resolvida (entrada velha da fila)
+      closed[n] = runId;
+      if (n === goal) break;
+      const ni = n % GW, nj = (n / GW) | 0;
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+        if (!di && !dj) continue;
+        const i = ni + di, j = nj + dj;
+        if (!isFree(i, j) || (di && dj && (!isFree(ni + di, nj) || !isFree(ni, nj + dj)))) continue; // sem cortar quina
+        const m = j * GW + i, g = gScore[n] + (di && dj ? 1.414 : 1);
+        if (closed[m] === runId || (stamp[m] === runId && g >= gScore[m])) continue;
+        stamp[m] = runId; gScore[m] = g; came[m] = n; push(g + h(m), m);
+      }
+    }
+    if (stamp[goal] !== runId) return null;
+    const cells = [];
+    for (let n = goal; n !== -1; n = came[n]) cells.push(n);
+    return cells.reverse();
+  }
+  // caminho até o destino desviando dos obstáculos; devolve pontos de passagem já suavizados
   function route(from, to) {
-    const zone = p => p.x < 30 ? 0 : p.x < STREAM_X ? 1 : 2; // escritório, margem, jardim
-    const a = zone(from), b = zone(to);
-    if (a === b) return [to.clone()];
-    const chain = [WP.inDoor, WP.outDoor, WP.bridgeIn, WP.bridgeOut];
-    const path = a < b
-      ? chain.slice(a === 0 ? 0 : 2, b === 1 ? 2 : 4)
-      : chain.slice(b === 0 ? 0 : 2, a === 1 ? 2 : 4).reverse();
-    return [...path.map(v => v.clone()), to.clone()];
+    const [fi, fj] = nearestFree(...cellOf(from.x, from.z)), [ti, tj] = nearestFree(...cellOf(to.x, to.z));
+    const cells = (fi === ti && fj === tj) ? [] : astar(fi, fj, ti, tj);
+    if (!cells) return [to.clone()]; // sem caminho (não deveria acontecer): vai direto
+    const pts = [new THREE.Vector3(from.x, 0, from.z)];
+    if (!isFree(...cellOf(from.x, from.z))) { const [cx, cz] = centerOf(fi, fj); pts.push(new THREE.Vector3(cx, 0, cz)); } // sai do obstáculo (cadeira/banco)
+    for (const n of cells) { const [x, z] = centerOf(n % GW, (n / GW) | 0); pts.push(new THREE.Vector3(x, 0, z)); }
+    // suavização: pula pontos enquanto a linha reta continuar livre
+    const out = [];
+    let cur = pts[0];
+    for (let k = 1; k < pts.length;) {
+      let far = k;
+      while (far + 1 < pts.length && clearLine(cur.x, cur.z, pts[far + 1].x, pts[far + 1].z)) far++;
+      out.push(pts[far]); cur = pts[far]; k = far + 1;
+    }
+    out.push(to.clone()); // último passinho até o ponto exato (assento, cadeira)
+    return out;
   }
   // posição de um agente numa estação (n = índice do agente, para não empilhar)
   function standAt(key, n) {
@@ -422,5 +520,5 @@ export function buildWorld(scene, label) {
     for (const m of SPIN) m.rotation.y += dt * .4;
   }
 
-  return { stations, desks, seats, DOOR, groundY, route, standAt, update, jiraBoard, slackTV };
+  return { stations, desks, seats, DOOR, groundY, route, standAt, update, jiraBoard, slackTV, clearLine };
 }
