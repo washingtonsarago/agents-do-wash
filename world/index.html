@@ -1337,12 +1337,69 @@ const TOUR_STEPS = [
       place(main, 2, 18, .4);
       select(main);
       camAt(5, 2, 15, 2.2);
+      await w(300);
+      const session = [ // uma sessão de exemplo, aparecendo aos poucos
+        [{ t: 'user', text: 'Investiga por que o checkout está lento' }],
+        [{ t: 'text', text: 'Vou olhar o client de pagamentos e os testes.' }],
+        [{ t: 'tool', text: 'Grep(Timeout)' }, { t: 'result', text: 'src/payments/client.go:42:  Timeout: 1 * time.Second' }],
+        [{ t: 'tool', text: 'Edit(src/payments/client.go)' }, { t: 'result', text: 'Timeout: 1 * time.Second  →  Timeout: 5 * time.Second' }],
+        [{ t: 'tool', text: 'Bash(go test ./...)' }, { t: 'result', text: 'ok   payments  1.204s\nok   orders    0.811s' }],
+        [{ t: 'text', text: 'Pronto: o timeout estava em 1 s. Subi para 5 s e os testes passaram.' }],
+      ];
+      $('termLog').innerHTML = ''; // sem o aviso do modo demo na gravação
+      for (const e of session) { await w(700); termAppend(e); }
       const typeIn = async text => { $('cText').value = ''; for (const ch of text) { $('cText').value += ch; await w(45); } };
       await w(1200); await typeIn('Revisa o PR #42 e roda os testes');
       demoSend('main', $('cText').value); $('cText').value = '';
       await w(1800); await typeIn('Depois abre o PR com o resumo');
       demoSend('main', $('cText').value); $('cText').value = '';
+    },
+    leave() { $('cText').value = ''; } },
+  { kicker: 'Organização', title: '✏️ Dando nome aos agentes', ms: 13e3, side: true,
+    text: 'Clicando no lápis, dou o nome que eu quiser para um agente. O nome muda em cima dele, na lista, no terminal e no Slack, e fica salvo.',
+    async run(w) {
+      const p = agentsList()[1];
+      if (!p) return;
+      place(p, 1, 18.5, .3);
+      select(p);
+      camAt(3, 2, 16, 2.6);
+      await w(1500);
+      startRename();
+      const input = $('cRenameInput');
+      if (!input) return;
+      input.value = '';
+      for (const ch of 'Arquiteta Chefe') { input.value += ch; await w(90); }
+      await w(500);
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await w(300); emote(p, 'Yes'); say(p, '😄 Gostei do nome novo!', 3000);
+    },
+    leave() { const i = $('cRenameInput'); if (i) { i.value = ''; i.blur(); } } }, // sai sem renomear (nome vazio = sem mudança)
+  { kicker: 'Atenção', title: '❗ Quando um agente precisa de você', ms: 12e3, side: true,
+    text: 'Se um agente pede permissão, ele pula e acena com um balão vermelho até você responder. Dá para ver de longe quem está esperando.',
+    async run(w) {
+      deselect();
+      const p = agentsList()[2];
+      if (!p) return;
+      place(p, p.home.x, p.home.z, p.desk.face);
+      camAt(p.home.x, 1.5, p.home.z, 3.2);
+      await w(1200);
+      handle({ id: p.a.id, kind: 'attention', text: 'Permissão: Bash terraform apply' });
+      p.lastEvent = performance.now() + 1e9;
+      await w(8000);
+      p.attention = false; emote(p, 'ThumbsUp'); say(p, '✅ Aprovado, seguindo!', 2500);
     } },
+  { kicker: 'Navegação', title: '🎥 A câmera acompanha um agente', ms: 13e3, side: false,
+    text: 'Dá para aproximar onde quiser, voar até um lugar pelo menu, ou deixar a câmera seguindo um agente por onde ele for.',
+    async run(w) {
+      const p = agentsList()[4];
+      if (!p) return;
+      place(p, p.home.x, p.home.z, p.desk.face);
+      await w(200);
+      startFollow(p);
+      await w(1200);
+      goTo(p, V3(58, 0, 7), 0, 'Wave');
+    },
+    leave() { stopFollow(); } },
   { kicker: 'De qualquer lugar', title: '💬 Falando com os agentes pelo Slack', ms: 16e3, side: false,
     text: 'Uma mensagem direta para o bot lista os agentes com o contexto do que cada um está fazendo, e manda tarefas para eles.',
     async run(w) {

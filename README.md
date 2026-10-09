@@ -47,8 +47,9 @@ bot:   ✅ dev-performance-analyzer respondeu: Todos os 42 testes passaram.
 ## 🎬 Modo apresentação
 
 Um tour automático, com câmera, legendas e cenas encenadas (no modo demo), para gravar a tela e narrar: abra
-**http://localhost:4321/?demo&tour** ou clique em 🎬 no topo. São 15 cenas, ~3 min 40 s: os agentes, as ferramentas,
-os subagentes, os heróis, o chefe, o head de segurança, o CTO, o Limpinho, a copa, o jardim, Jira e Slack, o terminal e o bot do Slack.
+**http://localhost:4321/?demo&tour** ou clique em 🎬 no topo. São 18 cenas, ~4 min 20 s: os agentes, as ferramentas,
+os subagentes, os heróis, o chefe, o head de segurança, o CTO, o Limpinho, a copa, o jardim, Jira e Slack, o terminal com fila,
+renomear um agente, pedido de permissão, a câmera que segue e o bot do Slack.
 Teclas: `→`/`←` cenas, `espaço` pausa, `H` esconde a legenda, `Esc` sai. O roteiro de narração está em
 [docs/roteiro-apresentacao.md](docs/roteiro-apresentacao.md).
 

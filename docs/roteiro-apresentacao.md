@@ -8,7 +8,7 @@ Ele usa o modo demo, com dados de exemplo, então nada das suas sessões reais a
 1. Com o observador rodando, abra **http://localhost:4321/?demo&tour** (ou clique em 🎬 no topo do site).
 2. Deixe o navegador em tela cheia (`Ctrl + Cmd + F`) e silencie as notificações (Foco → Não perturbe).
 3. Comece a gravar: `Cmd + Shift + 5` → *Gravar a tela inteira* (ou *Gravar parte selecionada*).
-4. O tour começa sozinho e cada cena avança no tempo dela. **Duração total: ~3 min 40 s.**
+4. O tour começa sozinho e cada cena avança no tempo dela. **Duração total: ~4 min 20 s.**
 
 | Tecla | O que faz |
 |---|---|
@@ -35,9 +35,12 @@ Ele usa o modo demo, com dados de exemplo, então nada das suas sessões reais a
 | 10 | **☕ Copa** | 13 s | "Quando um agente fica à toa, ele não fica parado: vai tomar café, ler na biblioteca, bater papo na sala de reunião ou descansar no chafariz." |
 | 11 | **🌳 Jardim** | 12 s | "Lá fora tem jardim, riacho e chafariz. Todo mundo desvia dos obstáculos e só atravessa o riacho pela ponte." |
 | 12 | **📋 Jira e 💬 Slack** | 14 s | "Na parede, um quadro com as minhas issues do Jira e uma TV com as mensagens do Slack, que se atualizam sozinhos. Quando um agente mexe numa issue, o card mostra quem foi." |
-| 13 | **🖥️ Terminal** | 18 s | "Clicando num agente, eu abro o terminal da sessão dele e posso mandar mensagem. Se ele estiver ocupado, a mensagem entra na fila e é entregue quando ele terminar." |
-| 14 | **Slack** | 16 s | "E eu falo com eles de qualquer lugar, pelo Slack: peço a lista com o que cada um está fazendo e mando tarefas por mensagem direta." |
-| 15 | **Encerramento** | 12 s | "É tudo código aberto: está no meu GitHub, washingtonsarago/agents-do-wash. Quem quiser, é só clonar e rodar." |
+| 13 | **🖥️ Terminal** | 18 s | "Clicando num agente, eu abro o terminal da sessão dele: o que pedi, cada ferramenta que ele usou e o que respondeu. Daqui eu mando mensagem, e se ele estiver ocupado, ela entra na fila e é entregue quando ele terminar." |
+| 14 | **✏️ Nomes** | 13 s | "Para organizar, eu dou o nome que eu quiser para um agente. O nome muda em cima dele, na lista, no terminal e no Slack, e fica salvo." |
+| 15 | **❗ Permissão** | 12 s | "Quando um agente precisa de aprovação, ele pula e acena com um balão vermelho. Dá para ver de longe quem está esperando por mim." |
+| 16 | **🎥 Câmera** | 13 s | "Eu posso aproximar onde quiser, voar até um lugar pelo menu, ou deixar a câmera seguindo um agente: aqui ela vai atrás dele até o jardim." |
+| 17 | **Slack** | 16 s | "E eu falo com eles de qualquer lugar, pelo Slack: peço a lista com o que cada um está fazendo e mando tarefas por mensagem direta." |
+| 18 | **Encerramento** | 12 s | "É tudo código aberto: está no meu GitHub, washingtonsarago/agents-do-wash. Quem quiser, é só clonar e rodar." |
 
 ## Para lembrar enquanto narra
 
