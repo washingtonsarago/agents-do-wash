@@ -112,6 +112,20 @@ ouve "Cuidado com rm -rf!", quem está na web ouve "Confere o domínio antes de 
 ("Esse .env não vai pro git, né?", "Rotacionou aquela chave de API?"). Também solta dicas para o time todo. Às vezes exagera no jargão ("Isso tá vulnerável a TOCTOU com race no inode!"), o agente responde "Hã? Não entendi nada!" e ele traduz: "Resumindo: confere o arquivo na hora de usar 🙄".
 O agente concorda e responde ("Anotado!"). Também é só visual, sem custo de token; o botão 🛡️ no topo liga e desliga.
 
+## O robô de limpeza 🤖
+
+O Limpinho (robô de metal claro, tela no rosto, antena e esfregão) passa pano pelo escritório, pela copa, pela sala de
+reunião, pela biblioteca e pela praça do chafariz, deixando uma placa de "piso molhado" onde limpa. Se tem alguém perto,
+pede licença ("Levanta o pé, Bia!"); na copa reclama do café derramado. O botão 🤖 no topo liga e desliga.
+
+## Navegar e dar zoom
+
+- **Rodinha do mouse**: aproxima para onde o cursor aponta.
+- **Duplo clique** num ponto: a câmera voa até lá, já aproximada.
+- **📍 Ir para…**: atalhos para copa, chafariz, sala de reunião, biblioteca, servidores, quadro do Jira/TV do Slack, mesas e jardim.
+- **➕ ➖** no topo (ou as teclas `+` e `-`); **🏠** volta à visão geral.
+- **🎥** no terminal de um agente: a câmera segue o agente por onde ele for (arrastar a câmera cancela).
+
 ## Dar nomes aos agentes
 
 No terminal de qualquer agente, clique em ✏️ ao lado do nome, digite e aperte Enter (vazio volta ao nome original).

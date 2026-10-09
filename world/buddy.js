@@ -14,7 +14,7 @@ function add(parent, geo, m, x = 0, y = 0, z = 0) {
   const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; parent.add(o); return o;
 }
 
-export const EMOTES = { Wave: 1.6, Jump: .8, Yes: 1, No: 1, Punch: 1, ThumbsUp: 1.2, Dance: 2.4, Point: 2.2, Drink: 1.8 };
+export const EMOTES = { Wave: 1.6, Jump: .8, Yes: 1, No: 1, Punch: 1, ThumbsUp: 1.2, Dance: 2.4, Point: 2.2, Drink: 1.8, Mop: 2.4 };
 
 export const SKINS = {
   classico: '🟡 Clássico',
@@ -240,6 +240,32 @@ export function makeBuddy({ color, main = false, seed = 1, skin = 'classico', pa
     armR = limb(.92, Y0 + H - .12, .62, jacket, hand, .17);
     legs(mat('#2d3038'), new THREE.BoxGeometry(.32, .2, .46), mat('#e9e9e6')); // tênis brancos
     for (const lg of [legL, legR]) lg.scale.set(1.15, 1, 1.15);
+  } else if (skin === 'limpeza') {
+    // ---------- robô de limpeza: corpo de metal claro, tela no rosto, antena e esfregão ----------
+    const shell = mat('#e9eef2', { metalness: .35, roughness: .35 }), trim = mat('#2bb3a6', { metalness: .4, roughness: .4 }), dark = mat('#2b2f36');
+    const Y0 = 1.0, H = 1.2;
+    add(body, new THREE.CylinderGeometry(.72, .78, H, 26), shell, 0, Y0 + H / 2, 0); // corpo
+    for (const y of [Y0 + .15, Y0 + H - .1]) add(body, new THREE.TorusGeometry(.75, .05, 8, 28), trim, 0, y, 0).rotation.x = Math.PI / 2; // faixas
+    const panel = add(body, new THREE.BoxGeometry(.5, .36, .06), dark, 0, Y0 + .7, .74); // painel
+    for (let k = 0; k < 3; k++) add(body, new THREE.CircleGeometry(.045, 12), new THREE.MeshBasicMaterial({ color: ['#5fd38d', '#f5c518', '#4fa3ff'][k] }), -.13 + k * .13, Y0 + .7, .775); // luzes
+    add(body, new THREE.CylinderGeometry(.2, .24, .22, 14), dark, 0, Y0 + H + .1, 0); // pescoço
+    const HY = Y0 + H + .58;
+    add(body, new THREE.SphereGeometry(.5, 24, 18), shell, 0, HY, 0).scale.set(1.1, .9, 1); // cabeça
+    const screen = add(body, new THREE.CircleGeometry(.36, 28), dark, 0, HY, .48); screen.scale.set(1.25, .8, 1); // tela do rosto
+    const glow = new THREE.MeshBasicMaterial({ color: '#7ff0e2' });
+    for (const ex of [-.15, .15]) { const e = new THREE.Mesh(new THREE.CircleGeometry(.07, 16), glow); e.position.set(ex, HY + .05, .49); body.add(e); eyes.push(e); }
+    const smileM = new THREE.Mesh(new THREE.TorusGeometry(.1, .02, 6, 14, Math.PI), glow); smileM.position.set(0, HY - .09, .49); smileM.rotation.z = Math.PI; body.add(smileM);
+    add(body, new THREE.CylinderGeometry(.02, .02, .4, 6), dark, 0, HY + .55, 0); // antena
+    add(body, new THREE.SphereGeometry(.07, 10, 8), new THREE.MeshBasicMaterial({ color: '#2bb3a6' }), 0, HY + .78, 0);
+    const hand = { geo: new THREE.SphereGeometry(.14, 12, 10), mat: trim };
+    armL = limb(-.84, Y0 + H - .1, .55, shell, hand, .11);
+    armR = limb(.84, Y0 + H - .1, .55, shell, hand, .11);
+    // esfregão na mão direita
+    const mop = new THREE.Group(); mop.position.set(0, -.63, .08); mop.rotation.x = .55; armR.add(mop);
+    add(mop, new THREE.CylinderGeometry(.035, .035, 2.1, 8), mat('#9aa3ad', { metalness: .6 }), 0, -.7, 0);
+    const head = new THREE.Group(); head.position.y = -1.75; mop.add(head);
+    for (let k = 0; k < 10; k++) { const strand = add(head, new THREE.CylinderGeometry(.03, .025, .38, 5), mat('#7fd8cf'), Math.sin(k * .63) * .14, -.15, Math.cos(k * .63) * .14); strand.rotation.set(Math.cos(k * .63) * .35, 0, -Math.sin(k * .63) * .35); }
+    legs(dark, new THREE.BoxGeometry(.34, .18, .44), trim);
   } else {
     // ---------- clássico: cápsula amarela de macacão ----------
     const overall = mat(color);
@@ -318,6 +344,7 @@ export function makeBuddy({ color, main = false, seed = 1, skin = 'classico', pa
         case 'ThumbsUp': tgt.aRz = -1.9; tgt.aRx = -.6; tgt.by += env * .3; break;
         case 'Point': tgt.aRx = -1.45; tgt.aRz = -.1 + Math.sin(t * 12) * .14; tgt.bx = -.06; tgt.bry = .12; break; // bronca: dedo em riste
         case 'Drink': tgt.aRx = -2.05 * env; tgt.aRz = -.25 - .35 * env; tgt.bx = -.05 * env; break; // gole de café
+        case 'Mop': { const sw = Math.sin(k * Math.PI * 4); tgt.aLx = tgt.aRx = -.75; tgt.aLz = .5 + sw * .35; tgt.aRz = -.5 + sw * .35; tgt.bry = sw * .35; tgt.bx = .14; break; } // passando o pano
         case 'Dance': tgt.brz = Math.sin(t * 9) * .25; tgt.by += Math.abs(Math.sin(t * 9)) * .35; tgt.aLz = 2 + Math.sin(t * 9) * .5; tgt.aRz = -2 - Math.cos(t * 9) * .5; break;
       }
       if (k >= 1) emote = null;

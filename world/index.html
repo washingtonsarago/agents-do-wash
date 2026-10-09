@@ -13,8 +13,10 @@
   #scene { position:fixed; inset:0; }
   #hud { position:fixed; top:16px; left:16px; display:flex; gap:10px; align-items:center; pointer-events:none; }
   #hud h1 { margin:0; font-size:18px; letter-spacing:-.02em; }
-  #home, #bossBtn, #secBtn { pointer-events:auto; border:0; cursor:pointer; font:inherit; }
-  #bossBtn.off, #secBtn.off { opacity:.45; }
+  #home, #bossBtn, #secBtn, #cleanBtn, #zoomIn, #zoomOut, #goto { pointer-events:auto; border:0; cursor:pointer; font:inherit; color:var(--ink); }
+  #goto { appearance:none; }
+  #cFollow.on { color:#5fd38d; }
+  #bossBtn.off, #secBtn.off, #cleanBtn.off { opacity:.45; }
   #skin { pointer-events:auto; border:0; cursor:pointer; font:inherit; color:var(--ink); appearance:none; padding-right:14px; }
   .pill { background:var(--panel); backdrop-filter: blur(8px); padding:6px 12px; border-radius:999px;
     box-shadow:0 2px 10px rgba(0,0,0,.06); font-variant-numeric: tabular-nums; }
@@ -93,6 +95,10 @@
   <select id="skin" class="pill" title="Visual dos agentes"></select>
   <button id="bossBtn" class="pill" title="Liga/desliga o chefe">👔</button>
   <button id="secBtn" class="pill" title="Liga/desliga o head de segurança">🛡️</button>
+  <button id="cleanBtn" class="pill" title="Liga/desliga o robô de limpeza">🤖</button>
+  <select id="goto" class="pill" title="Ir para um lugar"></select>
+  <button id="zoomIn" class="pill" title="Aproximar (+)">➕</button>
+  <button id="zoomOut" class="pill" title="Afastar (−)">➖</button>
   <button id="home" class="pill" title="Visão geral">🏠</button>
 </div>
 <div id="side">
@@ -100,7 +106,7 @@
   <div class="card" id="feedCard"><h2>Ao vivo</h2><div id="feed"></div></div>
 </div>
 <div id="composer" hidden>
-  <div class="who"><span class="dot" id="cDot"></span><b id="cTo"></b><button class="ghost" id="cRename" title="Renomear este agente">✏️</button><button class="ghost" id="cClose" title="Fechar (Esc)">✕</button></div>
+  <div class="who"><span class="dot" id="cDot"></span><b id="cTo"></b><button class="ghost" id="cFollow" title="Câmera segue este agente">🎥</button><button class="ghost" id="cRename" title="Renomear este agente">✏️</button><button class="ghost" id="cClose" title="Fechar (Esc)">✕</button></div>
   <div id="cSub" class="hint" hidden></div>
   <div id="termLog"></div>
   <div class="row"><span class="ps">❯</span>
@@ -140,7 +146,8 @@ camera.position.copy(FOCUS).add(new THREE.Vector3(55, 50, 55));
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.maxPolarAngle = Math.PI / 2.3;
-controls.minZoom = 0.4; controls.maxZoom = 9;
+controls.minZoom = 0.4; controls.maxZoom = 12;
+controls.zoomToCursor = true; // a rodinha aproxima para onde o mouse aponta
 controls.target.copy(FOCUS);
 camera.zoom = 1.05;
 
@@ -651,7 +658,7 @@ function demoTerm(ev) {
   else if (ev.kind === 'say') termAppend([{ t: 'text', text: ev.text }]);
   else if (ev.kind === 'prompt') termAppend([{ t: 'user', text: ev.text }]);
 }
-function deselect() { selected = null; ring.visible = false; $('composer').hidden = true; }
+function deselect() { selected = null; ring.visible = false; $('composer').hidden = true; stopFollow?.(); }
 
 // modo demo: simula o envio, com fila quando o agente ainda está "respondendo"
 const demoQueues = new Map();
@@ -691,6 +698,7 @@ async function send() {
 $('cSend').onclick = () => send();
 $('cClose').onclick = deselect;
 $('cRename').onclick = startRename;
+$('cFollow').onclick = () => following === selected ? stopFollow() : selected && startFollow(selected);
 $('cText').addEventListener('input', e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; });
 $('cText').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } });
 addEventListener('keydown', e => { if (e.key === 'Escape') deselect(); });
@@ -706,9 +714,55 @@ function focusOn(mesh) {
   const w = mesh.geometry.parameters.width;
   flyTo(c.clone().addScaledVector(normal, 60).add(new THREE.Vector3(0, 25, 0)), c, Math.min(9, (VIEW * 2 * innerWidth / innerHeight) / (w * 1.5)));
 }
-function goHome() { focused = null; flyTo(HOME.pos.clone(), HOME.target.clone(), HOME.zoom); }
+function goHome() { focused = null; stopFollow(); flyTo(HOME.pos.clone(), HOME.target.clone(), HOME.zoom); }
 $('home').onclick = goHome;
-controls.addEventListener('start', () => { focused = null; camAnim = null; }); // mexeu na câmera: sai do foco
+controls.addEventListener('start', () => { focused = null; camAnim = null; stopFollow(); }); // mexeu na câmera: sai do foco
+
+// aproxima num ponto mantendo o ângulo atual da câmera
+function lookAt(target, zoom) {
+  const off = camera.position.clone().sub(controls.target);
+  flyTo(target.clone().add(off), target.clone(), Math.min(controls.maxZoom, Math.max(controls.minZoom, zoom)));
+}
+// atalhos de lugares
+const PLACES = {
+  copa: ['☕ Copa', [22, 1.5, 20], 4.2], chafariz: ['⛲ Chafariz', [56, 1, 0], 3.2], reuniao: ['🤝 Sala de reunião', [-20, 1, 15], 3.4],
+  biblioteca: ['📚 Biblioteca', [-21, 1.5, -20], 3.4], servidores: ['🖥️ Servidores', [-25, 1.5, 1], 3.6], quadros: ['📋 Jira e 💬 Slack', [14, 2.5, -21], 2.6],
+  mesas: ['🪑 Mesas', [0, 1, 1], 2], jardim: ['🌳 Jardim e ponte', [48, 0, 0], 1.6], escritorio: ['🏢 Visão geral', null],
+};
+$('goto').innerHTML = '<option value="">📍 Ir para…</option>' + Object.entries(PLACES).map(([k, [n]]) => `<option value="${k}">${n}</option>`).join('');
+$('goto').onchange = e => {
+  const pl = PLACES[e.target.value]; e.target.value = '';
+  if (!pl) return;
+  stopFollow(); focused = null;
+  if (!pl[1]) return goHome();
+  lookAt(new THREE.Vector3(...pl[1]), pl[2]);
+};
+// botões e teclas de zoom
+const zoomBy = f => { camAnim = null; camera.zoom = Math.min(controls.maxZoom, Math.max(controls.minZoom, camera.zoom * f)); camera.updateProjectionMatrix(); };
+$('zoomIn').onclick = () => zoomBy(1.3);
+$('zoomOut').onclick = () => zoomBy(1 / 1.3);
+addEventListener('keydown', e => {
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName)) return;
+  if (e.key === '+' || e.key === '=') zoomBy(1.3);
+  if (e.key === '-' || e.key === '_') zoomBy(1 / 1.3);
+});
+// duplo clique: voa até o ponto do chão, já aproximado
+const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+renderer.domElement.addEventListener('dblclick', e => {
+  const v = new THREE.Vector2(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  const rc = new THREE.Raycaster(); rc.setFromCamera(v, camera);
+  const hit = rc.ray.intersectPlane(floorPlane, new THREE.Vector3());
+  if (!hit) return;
+  stopFollow(); focused = null;
+  lookAt(hit.setY(1.2), Math.max(camera.zoom * 1.8, 3.2));
+});
+// câmera seguindo um agente
+let following = null;
+function stopFollow() { following = null; $('cFollow')?.classList.remove('on'); }
+function startFollow(p) {
+  following = p; $('cFollow').classList.add('on');
+  lookAt(p.g.position.clone().setY(1.6), Math.max(camera.zoom, 4.5));
+}
 
 // clique (sem arrastar) num bonequinho seleciona
 const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
@@ -880,15 +934,18 @@ function createNpc(cfg) {
           g.rotation.y = Math.atan2(vp.x - g.position.x, vp.z - g.position.z);
           cfg.talkTo(npc, npc.victim, now);
           npc.until = now + 3400; npc.nextTalk = now + cfg.cooldown[0] + Math.random() * (cfg.cooldown[1] - cfg.cooldown[0]);
+        } else if (cfg.onArrive) {
+          npc.until = now + cfg.onArrive(npc, now); // ex.: o robô de limpeza começa a limpar
         } else {
           npc.until = now + 1800 + Math.random() * 2500;
           if (Math.random() < (cfg.mutterChance || .25)) npc.say(cfg.icon + ' ' + pickOne(cfg.mutters), 3000);
         }
       }
+      cfg.whileIdle?.(npc, now);
       if (!buddy.busy) buddy.play('Idle');
       if (now > npc.until) {
         npc.victim = now > npc.nextTalk ? cfg.pickTarget(now) : null;
-        go(npc.victim ? toward(npc.victim) : patrolPoint());
+        go(npc.victim ? toward(npc.victim) : (cfg.patrol ? cfg.patrol() : patrolPoint()));
         npc.state = 'walk';
       }
     }
@@ -986,6 +1043,47 @@ createNpc({
   },
 });
 
+// 🤖 o robô de limpeza: passa pano pelo escritório e pelo jardim, deixa placa de piso molhado e pede licença
+function wetFloorSign(pos) {
+  const g = new THREE.Group(); g.position.copy(pos).setY(0);
+  const yellow = new THREE.MeshStandardMaterial({ color: '#f5c518', roughness: .5 });
+  for (const sd of [-1, 1]) { // placa em "A"
+    const m = new THREE.Mesh(new THREE.BoxGeometry(.6, .9, .04), yellow);
+    m.position.set(0, .43, sd * .16); m.rotation.x = sd * .3; m.castShadow = true; g.add(m);
+  }
+  const tag = label('⚠️ Piso molhado', { size: 18, bg: 'rgba(245,197,24,.95)' }); tag.position.y = 1.35; tag.scale.multiplyScalar(.75); g.add(tag);
+  scene.add(g);
+  setTimeout(() => scene.remove(g), 14e3);
+}
+const CLEAN_SPOTS = () => [
+  pickOne(desks).home.clone().add(new THREE.Vector3(pickOne([-1.6, 1.6]), 0, 0)), // corredores das mesas
+  new THREE.Vector3(21 + Math.random() * 4, 0, 18.4), // copa
+  world.standAt('meeting', Math.floor(Math.random() * 8)), world.standAt('library', Math.floor(Math.random() * 5)),
+  new THREE.Vector3(56 + Math.sin(Math.random() * 6.3) * 5.4, 0, Math.cos(Math.random() * 6.3) * 5.4), // praça do chafariz
+  new THREE.Vector3(-3 + Math.random() * 6, 0, 18 + Math.random() * 3), // entrada
+];
+const cleaner = createNpc({
+  id: 'limpeza', skin: 'limpeza', tag: '🤖 Limpinho', icon: '🤖', button: 'cleanBtn', speed: 3.6, cooldown: [1e12, 1e12],
+  spawn: new THREE.Vector3(-2, 0, 23), firstDelay: 3000, tagY: 4.3, bubbleBg: 'rgba(232,247,245,.97)',
+  mutters: ['Bip! Tudo limpinho.'], pickTarget: () => null, talkTo() {},
+  patrol: () => pickOne(CLEAN_SPOTS()),
+  onArrive(npc, now) {
+    npc.cleanUntil = now + 7000;
+    wetFloorSign(npc.g.position.clone().add(new THREE.Vector3(1, 0, .6)));
+    const atCopa = npc.g.position.x > 17 && npc.g.position.z > 16;
+    const near = [...people.values()].filter(p => !p.leaving && p.g.position.distanceTo(npc.g.position) < 4);
+    if (near.length && Math.random() < .7) {
+      const p = pickOne(near);
+      const phrase = atCopa ? pickOne(['Quem derramou café aqui?!', 'De novo café no chão, gente?']) : pickOne(['Licença, vou passar o pano aqui!', 'Cuidado que tá molhado!', 'Levanta o pé, {n}!']).replace('{n}', firstName(p));
+      npc.say('🤖 ' + phrase, 3500);
+      feedSys(`🤖 <b>Limpinho</b>: “${esc(phrase)}”`, '#2bb3a6');
+      react(p, 'Jump', '😅 ' + pickOne(['Opa, desculpa, Limpinho!', 'Foi mal!', 'Já saio daqui!', 'Valeu, Limpinho!']));
+    } else if (Math.random() < .3) npc.say('🤖 ' + pickOne(['Bip! Esse escritório não se limpa sozinho!', 'Bateria em 20%…', 'Tá ficando brilhando!', 'Quem deixou essa caneca aqui?']), 3000);
+    return 7500;
+  },
+  whileIdle(npc, now) { if (now < (npc.cleanUntil || 0) && !npc.buddy.busy) npc.buddy.emote('Mop'); },
+});
+
 function updateNpcs(dt, t, now) { for (const n of NPCS) n.update(dt, t, now); }
 if (window.__agentWorld) Object.assign(window.__agentWorld, { boss, npcs: NPCS, goRest }); // para depurar
 
@@ -1064,6 +1162,14 @@ renderer.setAnimationLoop(() => {
     camera.zoom = camAnim.from.zoom + (camAnim.to.zoom - camAnim.from.zoom) * k;
     camera.updateProjectionMatrix();
     if (camAnim.t >= 1) camAnim = null;
+  }
+  if (following && !camAnim) { // acompanha o agente mantendo o ângulo
+    if (!people.has(following.a.id)) stopFollow();
+    else {
+      const off = camera.position.clone().sub(controls.target);
+      controls.target.lerp(following.g.position.clone().setY(1.6), Math.min(1, dt * 4));
+      camera.position.copy(controls.target).add(off);
+    }
   }
   controls.update();
   renderer.render(scene, camera);
