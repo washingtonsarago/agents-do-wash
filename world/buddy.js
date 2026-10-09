@@ -36,7 +36,7 @@ function emblemShape(kind) {
 }
 
 // Paletas de cores inspiradas em heróis conhecidos (só as cores: sem nomes, símbolos ou uniformes oficiais).
-// A primeira de cada lista vai para o agente principal; os subagents variam entre as outras.
+// Quem chama sorteia o índice (palette); sem sorteio, o principal fica com a primeira e os outros variam.
 const CAPE_PALETTES = [
   { top: '#2a5bd7', bottom: '#2a5bd7', cape: '#c8102e', boots: '#c8102e', gloves: '#2a5bd7', accent: '#f5c518', plate: '#f5c518', emblem: '#c8102e', shape: 0, hair: '#1c1c22' }, // azul, vermelho e amarelo (Superman)
   { top: '#6b6f76', bottom: '#2a2b30', cape: '#1b1c20', boots: '#1b1c20', accent: '#e8b923', plate: '#e8b923', emblem: '#1b1c20', shape: 3, cowl: '#1b1c20', mask: '#1b1c20' },       // cinza e preto (Batman)
@@ -53,9 +53,11 @@ const ARMOR_PALETTES = [
   { metal: '#4f9a3a', plate: '#6a3d9a', helmet: '#4f9a3a', face: '#4f9a3a', limbs: '#4f9a3a', lens: '#e8ffd8', core: '#c6ff9e' },   // verde e roxo (Hulk)
   { metal: '#8d939c', plate: '#3a3f4a', helmet: '#c0c5cc', lens: '#bfe3ff', core: '#7fc8ff', cape: '#b3202a' },                     // prata com capa vermelha (Thor)
 ];
-const pickPalette = (list, main, seed) => main ? list[0] : list[1 + (seed % (list.length - 1))];
+const pickPalette = (list, main, seed, palette) => Number.isInteger(palette) ? list[palette % list.length]
+  : main ? list[0] : list[1 + (seed % (list.length - 1))];
+export const HERO_COUNT = { capa: CAPE_PALETTES.length, armadura: ARMOR_PALETTES.length };
 
-export function makeBuddy({ color, main = false, seed = 1, skin = 'classico' }) {
+export function makeBuddy({ color, main = false, seed = 1, skin = 'classico', palette }) {
   const root = new THREE.Group();
   const body = new THREE.Group(); root.add(body); // tudo que balança junto
   const R = .78;
@@ -91,7 +93,7 @@ export function makeBuddy({ color, main = false, seed = 1, skin = 'classico' }) 
   let armL, armR;
   if (skin === 'capa') {
     // ---------- herói de capa (cores inspiradas em heróis clássicos) ----------
-    const P = pickPalette(CAPE_PALETTES, main, seed);
+    const P = pickPalette(CAPE_PALETTES, main, seed, palette);
     const top = mat(P.top), bottom = mat(P.bottom), accent = mat(P.accent, { metalness: .35, roughness: .35 });
     const extremity = mat(P.boots);
     add(body, new THREE.CapsuleGeometry(R, 1.1, 8, 24), mat('#f1c9a5'), 0, 1.85, 0); // rosto/pele
@@ -122,7 +124,7 @@ export function makeBuddy({ color, main = false, seed = 1, skin = 'classico' }) 
     legs(mat(P.legs || P.bottom), new THREE.BoxGeometry(.32, .3, .44), extremity, -.46);
   } else if (skin === 'armadura') {
     // ---------- herói de armadura (cores inspiradas em heróis clássicos) ----------
-    const P = pickPalette(ARMOR_PALETTES, main, seed);
+    const P = pickPalette(ARMOR_PALETTES, main, seed, palette);
     const metal = mat(P.metal, { metalness: .65, roughness: .3 });
     const plateM = mat(P.plate, { metalness: .75, roughness: .28 });
     const limbM = mat(P.limbs || P.metal, { metalness: .6, roughness: .32 });

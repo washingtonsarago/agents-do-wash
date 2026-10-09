@@ -115,7 +115,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildWorld } from './office.js';
-import { makeBuddy, SKINS } from './buddy.js';
+import { makeBuddy, SKINS, HERO_COUNT } from './buddy.js';
 
 // ---------- cena ----------
 const host = document.getElementById('scene');
@@ -206,13 +206,22 @@ const PALETTE = ['#6a9bd8', '#7bb37b', '#b07cc6', '#e7a33e', '#4fb3b3', '#e46a8f
 const hash = s => [...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 const colorFor = a => a.kind === 'main' ? '#3d6fb6' : PALETTE[hash(a.type) % PALETTE.length];
 
-// cada tipo de agente ganha a próxima paleta de herói, na ordem em que aparece (só repete depois de usar todas)
-const typeSlots = new Map();
-const slotOf = a => {
-  const key = a.type || a.id;
-  if (!typeSlots.has(key)) typeSlots.set(key, typeSlots.size);
-  return typeSlots.get(key);
-};
+// herói sorteado para cada agente: um "baralho" embaralhado por visual, que só repete depois de sair todo mundo
+const heroBags = {}, heroOf = new Map();
+function heroFor(a) {
+  if (!HERO_COUNT[skin]) return undefined;
+  const key = skin + ':' + a.id;
+  if (!heroOf.has(key)) {
+    if (!heroBags[skin]?.length) {
+      const bag = [...Array(HERO_COUNT[skin]).keys()];
+      for (let i = bag.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [bag[i], bag[j]] = [bag[j], bag[i]]; }
+      heroBags[skin] = bag;
+    }
+    heroOf.set(key, heroBags[skin].pop());
+  }
+  return heroOf.get(key);
+}
+const buddyFor = (a, color) => makeBuddy({ color, main: a.kind === 'main', seed: hash(a.id), skin, palette: heroFor(a) });
 
 // visual dos agentes (clássico, capas, armaduras), lembrado neste navegador
 let skin = 'classico';
@@ -222,7 +231,7 @@ function setSkin(next) {
   try { localStorage.setItem('aw-skin', next); } catch {}
   for (const p of people.values()) { // troca o corpo de cada um, mantendo posição, nome e balão
     p.g.remove(p.buddy.root);
-    p.buddy = makeBuddy({ color: p.color, main: p.a.kind === 'main', seed: slotOf(p.a), skin });
+    p.buddy = buddyFor(p.a, p.color);
     p.g.add(p.buddy.root);
   }
 }
@@ -232,7 +241,7 @@ const known = new Map(); // id -> info do agente (para recriar quem saiu e volto
 function makePerson(a) {
   const color = colorFor(a);
   const g = new THREE.Group();
-  const buddy = makeBuddy({ color, main: a.kind === 'main', seed: slotOf(a), skin }); // mesmo tipo de agente, mesmo herói
+  const buddy = buddyFor(a, color);
   g.add(buddy.root);
   const name = label(a.kind === 'main' ? `👑 ${a.name}` : a.name, { size: 22 });
   name.position.y = 4.2; g.add(name);

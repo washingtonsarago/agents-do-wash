@@ -13,7 +13,7 @@ Um escritório 3D com jardim onde seus agentes do Claude Code (bonequinhos amare
 
 ### Visuais de heróis
 
-Um seletor no topo troca o visual de todos os agentes. Cada tipo de agente ganha as cores de um herói conhecido.
+Um seletor no topo troca o visual de todos os agentes. Cada agente sorteia as cores de um herói conhecido; o sorteio muda a cada vez que a página abre.
 
 ![Heróis de capa: cores de Superman, Flash, Lanterna Verde, Mulher-Maravilha, Aquaman e Batman](docs/screenshots/herois-capas.png)
 **🦸 Capas (estilo DC)**: capa que esvoaça ao correr, máscara, cinto e emblema geométrico
@@ -51,7 +51,7 @@ bot:   ✅ dev-performance-analyzer respondeu: Todos os 42 testes passaram.
 - **Observador**: Node puro, zero dependências, só escuta em `127.0.0.1`. Lê os transcripts e recebe os hooks; a única ação que ele executa é o envio de mensagens (`claude -p --resume`), protegido por token.
 - **Duas fontes**: os transcripts JSONL (sempre) e os hooks (opcional, instantâneo). Eventos repetidos são descartados pelo `tool_use_id`.
 - **Mundo**: Three.js via CDN, sem build. `world/office.js` monta o cenário; `world/buddy.js`, os bonequinhos com animação procedural (andar, correr, sentar, acenar, pular, dançar…).
-- **Visuais**: um seletor no topo troca o visual dos agentes: 🟡 Clássico (cápsula de macacão), 🦸 Capas (estilo DC: capa esvoaçante, máscara, emblema geométrico) e 🤖 Armaduras (estilo Marvel: visor, núcleo de energia, ombreiras). Cada tipo de agente ganha as **cores** de um herói conhecido (Capas: Superman para o agente principal, Batman, Flash, Lanterna Verde, Mulher-Maravilha, Aquaman; Armaduras: Homem de Ferro para o principal, Capitão América, Homem-Aranha, Pantera Negra, Hulk, Thor), na ordem em que os tipos aparecem. Só as cores são inspiradas: os bonequinhos, emblemas e formas são originais, sem nomes, símbolos ou uniformes oficiais.
+- **Visuais**: um seletor no topo troca o visual dos agentes: 🟡 Clássico (cápsula de macacão), 🦸 Capas (estilo DC: capa esvoaçante, máscara, emblema geométrico) e 🤖 Armaduras (estilo Marvel: visor, núcleo de energia, ombreiras). Cada agente sorteia as **cores** de um herói conhecido (Capas: Superman, Batman, Flash, Lanterna Verde, Mulher-Maravilha, Aquaman; Armaduras: Homem de Ferro, Capitão América, Homem-Aranha, Pantera Negra, Hulk, Thor), sorteadas para cada agente (inclusive o principal), sem repetir até todos os heróis saírem. Só as cores são inspiradas: os bonequinhos, emblemas e formas são originais, sem nomes, símbolos ou uniformes oficiais.
 - **Cenário**: escritório com 36 mesas em 6 ilhas, biblioteca, sala de servidores, sala de reunião com quadro, copa, relógio com a hora real. Pela porta de vidro sai-se para o jardim: riacho, ponte em arco, chafariz com bancos, árvores e flores.
 
 ## Rodar
