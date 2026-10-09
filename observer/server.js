@@ -39,10 +39,25 @@ function markTool(toolId, agentId) {
   return true;
 }
 
+// contexto de cada agente (o que pediram, o que está fazendo, se espera você) — usado pelo bot do Slack
+function trackContext(a, ev) {
+  const ctx = a.ctx || (a.ctx = {});
+  const ts = ev.ts || Date.now();
+  switch (ev.kind) {
+    case 'tool': ctx.action = { tool: ev.tool, target: ev.issue || ev.target || '', ts }; ctx.status = 'working'; break;
+    case 'say': ctx.said = { text: ev.text, ts }; ctx.status = 'working'; break;
+    case 'prompt': case 'sendStart': ctx.asked = { text: ev.text, ts }; ctx.status = 'working'; break;
+    case 'attention': ctx.status = 'waiting'; ctx.waiting = { text: ev.text, ts }; break;
+    case 'stop': ctx.status = ev.failed ? 'failed' : 'idle'; break;
+    case 'leave': ctx.status = 'gone'; break;
+  }
+}
+
 function broadcast(ev) {
   if (ev.kind !== 'agent') {
     const a = agents.get(ev.id);
     if (a && !ev.replay) a.lastTs = Date.now();
+    if (a) trackContext(a, ev);
   }
   recent.push(ev);
   if (recent.length > 300) recent.shift();
@@ -463,7 +478,7 @@ const server = http.createServer((req, res) => {
   }
   if (url.pathname === '/debug') {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-    return res.end(JSON.stringify({ hooksLastTs, agents: [...agents.values()], hookLog }, null, 2));
+    return res.end(JSON.stringify({ hooksLastTs, sessions: sessionsInfo(), agents: [...agents.values()], hookLog }, null, 2));
   }
   if (url.pathname === '/events') {
     res.writeHead(200, {
@@ -498,14 +513,49 @@ setInterval(() => { for (const res of clients) res.write(': ping\n\n'); }, 15000
 scan();
 setInterval(scan, SCAN_MS);
 integ.start();
+// na partida só relemos o fim de cada transcript; completa o contexto com o histórico (uma vez por agente)
+function seedContext(a) {
+  if (a.ctxSeeded) return;
+  a.ctxSeeded = true;
+  const h = history(a.id);
+  if (!h) return;
+  const ctx = a.ctx || (a.ctx = {});
+  const last = t => [...h.entries].reverse().find(e => e.t === t);
+  const u = last('user'), tool = last('tool'), said = last('text');
+  if (!ctx.asked && u) ctx.asked = { text: u.text, ts: u.ts };
+  if (!ctx.action && tool) { const m = tool.text.match(/^([^(]+)\((.*)\)$/s); ctx.action = { tool: m ? m[1] : tool.text, target: m ? m[2] : '', ts: tool.ts }; }
+  if (!ctx.said && said) ctx.said = { text: said.text, ts: said.ts };
+}
+
+// sessões principais ativas (mais recente primeiro), com contexto e subagents
+function sessionsInfo() {
+  const now = Date.now();
+  const home = os.homedir();
+  const statusOf = a => {
+    const c = a.ctx || {};
+    if (running.has(a.id)) return 'replying';
+    if (c.status === 'gone') return 'gone';
+    if (c.status === 'waiting') return 'waiting';
+    if (c.status === 'failed') return 'failed';
+    if (c.status === 'working' && now - a.lastTs < 90e3) return 'working';
+    return 'idle';
+  };
+  const view = a => ({ id: a.id, name: a.name, type: a.type, task: a.task || '', lastTs: a.lastTs, running: running.has(a.id),
+    status: statusOf(a), cwd: a.cwd ? a.cwd.replace(home, '~') : '', tokens: a.tokens || 0, ...(a.ctx || {}) });
+  const active = [...agents.values()].filter(a => now - a.lastTs < ACTIVE_MS);
+  for (const a of active) seedContext(a);
+  return active
+    .filter(a => a.kind === 'main' && statusOf(a) !== 'gone')
+    .sort((x, y) => y.lastTs - x.lastTs)
+    .map(a => ({ ...view(a), subs: active.filter(s => s.kind === 'sub' && rootOf(s)?.id === a.id && statusOf(s) !== 'gone').map(view) }));
+}
+
 const bot = slackBot({
   emit: ev => emitLive(ev),
   sendToAgent,
   // sessões principais ativas, mais recente primeiro
-  listSessions: () => [...agents.values()]
-    .filter(a => a.kind === 'main' && Date.now() - a.lastTs < ACTIVE_MS)
-    .sort((x, y) => y.lastTs - x.lastTs)
-    .map(a => ({ id: a.id, name: a.name, lastTs: a.lastTs, running: running.has(a.id) })),
+  listSessions: () => sessionsInfo(),
+  historyOf: id => history(id),
 });
 bot.start();
 server.listen(PORT, '127.0.0.1', () => {

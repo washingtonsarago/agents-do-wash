@@ -22,15 +22,42 @@ const escape = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
 const clip = (s, n) => (s = String(s || '')).length > n ? s.slice(0, n) + '\n… (resposta cortada)' : s;
 const ago = ts => { const s = (Date.now() - ts) / 1000; return s < 60 ? 'agora' : s < 3600 ? `há ${Math.floor(s / 60)} min` : `há ${Math.floor(s / 3600)} h`; };
 
+const STATUS = {
+  working: '🟢 trabalhando', waiting: '🟠 aguardando você', replying: '⏳ respondendo sua mensagem',
+  idle: '⚪ parado', failed: '🔴 parou com erro',
+};
+const prettyTool = t => String(t || '').startsWith('mcp__') ? String(t).split('__').pop() : t;
+const one = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+
+// uma sessão com o contexto do que está acontecendo nela
+function describe(s, i) {
+  const lines = [`${i + 1}. 👑 *${escape(s.name)}* \`${s.id.slice(0, 8)}\` · ${STATUS[s.status] || s.status} · ativa ${ago(s.lastTs)}`];
+  if (s.cwd) lines.push(`      📁 \`${escape(s.cwd)}\``);
+  if (s.status === 'waiting' && s.waiting) lines.push(`      ❗ ${escape(one(s.waiting.text, 120))}`);
+  if (s.asked) lines.push(`      📋 pedido ${ago(s.asked.ts)}: _${escape(one(s.asked.text, 140))}_`);
+  if (s.action) lines.push(`      🔧 última ação ${ago(s.action.ts)}: *${escape(prettyTool(s.action.tool))}*${s.action.target ? ' · ' + escape(one(s.action.target, 80)) : ''}`);
+  if (s.said) lines.push(`      💬 ${escape(one(s.said.text, 160))}`);
+  if (s.subs?.length) {
+    lines.push(`      👥 subagents (${s.subs.length}):`);
+    for (const sub of s.subs.slice(0, 6)) {
+      const doing = sub.action ? ` · ${escape(prettyTool(sub.action.tool))}${sub.action.target ? ' ' + escape(one(sub.action.target, 50)) : ''}` : '';
+      lines.push(`            • ${escape(sub.name)}${sub.task ? ' — ' + escape(one(sub.task, 60)) : ''} · ${(STATUS[sub.status] || sub.status).split(' ')[0]}${doing}`);
+    }
+    if (s.subs.length > 6) lines.push(`            … e mais ${s.subs.length - 6}`);
+  }
+  return lines.join('\n');
+}
+
 const HELP = [
   '*Agents do Wash* — fale com os agentes do seu Mac por aqui.',
-  '• `lista` mostra as sessões ativas',
+  '• `lista` mostra os agentes rodando: status, pasta, o que pediram, o que estão fazendo e os subagents',
+  '• `contexto 2` (ou `contexto nome`) mostra as últimas ações daquela sessão',
   '• `nome: mensagem` (ou `@nome mensagem`, ou `2: mensagem` pelo número da lista) envia para uma sessão',
   '• texto sem nome vai para a última sessão com que você falou por aqui (ou a mais recente)',
   '• se a sessão estiver aberta num terminal, eu pergunto antes; responda `sim` na thread para confirmar',
 ].join('\n');
 
-module.exports = function slackBot({ listSessions, sendToAgent, emit }) {
+module.exports = function slackBot({ listSessions, sendToAgent, emit, historyOf }) {
   let ws = null, retryTimer = null;
   let state = { kind: 'slackbot', state: 'off' };
   let botUserId = null, teamId = null, allowed = null;
@@ -105,7 +132,10 @@ module.exports = function slackBot({ listSessions, sendToAgent, emit }) {
   function resolveTarget(word, sessions) {
     if (!word) return null;
     const w = word.toLowerCase();
-    if (/^\d+$/.test(w) && lastList[Number(w) - 1]) return sessions.find(s => s.id === lastList[Number(w) - 1]) || null;
+    if (/^\d+$/.test(w)) { // número da última lista enviada (ou da ordem atual, se ainda não pediu a lista)
+      const id = (lastList.length ? lastList : sessions.map(s => s.id))[Number(w) - 1];
+      return sessions.find(s => s.id === id) || null;
+    }
     return sessions.find(s => s.name.toLowerCase() === w) || (w.length >= 6 ? sessions.find(s => s.id.startsWith(w)) : null) || null;
   }
 
@@ -119,7 +149,20 @@ module.exports = function slackBot({ listSessions, sendToAgent, emit }) {
     if (/^(lista|list|sess(ões|oes))$/i.test(text)) {
       if (!sessions.length) return say('Nenhuma sessão ativa nos últimos 30 min.');
       lastList = sessions.map(s => s.id);
-      return say(sessions.map((s, i) => `${i + 1}. *${escape(s.name)}* \`${s.id.slice(0, 8)}\` · ativa ${ago(s.lastTs)}${s.running ? ' · ⏳ respondendo' : ''}${s.id === sticky ? ' · ⭐ atual' : ''}`).join('\n'));
+      const body = sessions.map((s, i) => describe(s, i) + (s.id === sticky ? '\n      ⭐ _é para cá que vai o texto sem nome_' : '')).join('\n\n');
+      return say(`*Agentes rodando* (${sessions.length})\n\n${body}\n\n_Para falar com um: \`2: sua mensagem\` · detalhes: \`contexto 2\`_`);
+    }
+
+    // últimas ações de uma sessão, no estilo do terminal
+    const cx = text.match(/^(contexto|detalhe|detalhes|context)\s+(\S+)$/i);
+    if (cx) {
+      const t = resolveTarget(cx[2], sessions);
+      if (!t) return say('Não achei essa sessão. Mande `lista` para ver os números.');
+      const h = historyOf?.(t.id);
+      if (!h || !h.entries.length) return say(`Sem histórico para *${escape(t.name)}* ainda.`);
+      const icon = { user: '❯', text: '⏺', tool: '⏺', result: '  ⎿' };
+      const tail = h.entries.slice(-14).map(e => escape(`${icon[e.t] || '·'} ${e.t === 'result' ? one(e.text, 120) : one(e.text, 300)}`));
+      return say(`${describe(t, sessions.indexOf(t))}\n\n*Últimas ações:*\n\`\`\`${tail.join('\n').replace(/\`\`\`/g, "'''")}\`\`\``);
     }
 
     // confirmação de envio para sessão aberta num terminal

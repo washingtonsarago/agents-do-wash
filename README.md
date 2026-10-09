@@ -102,7 +102,8 @@ Mande DM para o bot **Agents do Wash** no Slack:
 
 | Você escreve | O que acontece |
 |---|---|
-| `lista` | sessões ativas, numeradas, a mais recente primeiro |
+| `lista` | agentes rodando, numerados: status (🟢 trabalhando, 🟠 aguardando você, ⏳ respondendo, ⚪ parado), pasta, o que foi pedido, a última ação, a última fala e os subagents |
+| `contexto 2` (ou `contexto nome`) | as últimas ações daquela sessão, no estilo do terminal |
 | `ems: roda os testes` (ou `@ems …`, ou `2: …`) | envia para essa sessão (`claude -p --resume`) |
 | texto sem nome | vai para a última sessão com que você falou pelo Slack (ou a mais recente) |
 | `sim` na thread | confirma o envio para uma sessão que está aberta num terminal |
