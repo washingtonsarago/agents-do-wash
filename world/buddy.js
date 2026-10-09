@@ -266,6 +266,44 @@ export function makeBuddy({ color, main = false, seed = 1, skin = 'classico', pa
     const head = new THREE.Group(); head.position.y = -1.75; mop.add(head);
     for (let k = 0; k < 10; k++) { const strand = add(head, new THREE.CylinderGeometry(.03, .025, .38, 5), mat('#7fd8cf'), Math.sin(k * .63) * .14, -.15, Math.cos(k * .63) * .14); strand.rotation.set(Math.cos(k * .63) * .35, 0, -Math.sin(k * .63) * .35); }
     legs(dark, new THREE.BoxGeometry(.34, .18, .44), trim);
+  } else if (skin === 'cto') {
+    // ---------- o CTO: bem musculoso, roupa de academia (regata, shorts, tênis neon, faixa) e coqueteleira ----------
+    const skinM = mat('#e2b48f'), tank = mat('#2d3142', { roughness: .8 }), accent = mat('#ff5a36'), shorts = mat('#16181d'), hairM = mat('#1e1a17');
+    const TOP = 1.08, BOT = .62, Y0 = 1.15, H = 1.25, DEPTH = .74;
+    add(body, new THREE.CylinderGeometry(TOP, BOT, H, 28), tank, 0, Y0 + H / 2, 0).scale.z = DEPTH; // tronco em V (regata)
+    add(body, new THREE.SphereGeometry(TOP, 28, 12, 0, Math.PI * 2, 0, Math.PI / 2), skinM, 0, Y0 + H - .02, 0).scale.set(1, .26, DEPTH); // ombros à mostra
+    for (const sd of [-1, 1]) {
+      add(body, new THREE.SphereGeometry(.44, 18, 14), tank, sd * .38, Y0 + H - .32, .4).scale.set(1, .8, .64); // peitoral
+      add(body, new THREE.SphereGeometry(.44, 18, 14), skinM, sd * 1.0, Y0 + H - .08, 0); // deltoide enorme
+      add(body, new THREE.BoxGeometry(.08, H * .55, .05), accent, sd * .5, Y0 + H * .62, .62).rotation.z = sd * -.18; // listras da regata
+    }
+    for (let r = 0; r < 3; r++) for (const sd of [-1, 1]) add(body, new THREE.SphereGeometry(.11, 10, 8), tank, sd * .13, Y0 + .25 + r * .2, (BOT + (r * .2 + .25) / H * (TOP - BOT)) * DEPTH - .02).scale.set(1, .8, .5); // tanquinho marcado na regata
+    add(body, new THREE.CylinderGeometry(BOT + .03, .55, .5, 20), shorts, 0, Y0 - .22, 0).scale.z = .86; // shorts
+    add(body, new THREE.TorusGeometry(BOT + .02, .05, 8, 26), accent, 0, Y0 + .02, 0).scale.set(1, 1, DEPTH); // cós
+    // pescoço grosso e cabeça
+    const HY = Y0 + H + .55;
+    add(body, new THREE.CylinderGeometry(.3, .38, .36, 16), skinM, 0, Y0 + H + .12, 0);
+    add(body, new THREE.SphereGeometry(.5, 24, 18), skinM, 0, HY, 0).scale.set(.94, 1.05, .95);
+    add(body, new THREE.SphereGeometry(.512, 24, 12, 0, Math.PI * 2, 0, Math.PI * .3), hairM, 0, HY + .08, -.02); // cabelo curtinho
+    add(body, new THREE.CylinderGeometry(.505, .505, .12, 24, 1, true), accent, 0, HY + .2, 0); // faixa na testa
+    for (const sd of [-1, 1]) {
+      add(body, new THREE.SphereGeometry(.09, 10, 8), skinM, sd * .47, HY, 0);
+      const brow = add(body, new THREE.BoxGeometry(.17, .045, .04), hairM, sd * .16, HY + .1, .45); brow.rotation.z = sd * .28; // cara de bravo
+    }
+    for (const ex of [-.16, .16]) blinkEye(ex, HY + .02, .33, true, .41);
+    add(body, new THREE.BoxGeometry(.2, .035, .04), mat('#8a3b2e'), 0, HY - .17, .45); // boca séria
+    // braços muito fortes, à mostra, com munhequeira; coqueteleira na mão esquerda
+    const hand = { geo: new THREE.SphereGeometry(.21, 12, 10), mat: skinM };
+    armL = limb(-1.22, Y0 + H - .12, .66, skinM, hand, .25);
+    armR = limb(1.22, Y0 + H - .12, .66, skinM, hand, .25);
+    for (const arm of [armL, armR]) add(arm, new THREE.CylinderGeometry(.24, .24, .14, 14), accent, 0, -.66, 0); // munhequeira
+    const shaker = new THREE.Group(); shaker.position.set(0, -.92, .14); armL.add(shaker);
+    add(shaker, new THREE.CylinderGeometry(.13, .12, .42, 14), mat('#d8f3ff', { transparent: true, opacity: .75, roughness: .2 }));
+    add(shaker, new THREE.CylinderGeometry(.135, .135, .1, 14), mat('#ff5a36'), 0, .26, 0);
+    add(shaker, new THREE.CylinderGeometry(.11, .11, .2, 12), mat('#c89f73'), 0, -.08, 0); // whey
+    legs(skinM, new THREE.BoxGeometry(.38, .22, .52), mat('#b6ff3b')); // pernas à mostra e tênis neon
+    for (const lg of [legL, legR]) lg.scale.set(1.45, 1, 1.45);
+    root.scale.setScalar(1.12);
   } else {
     // ---------- clássico: cápsula amarela de macacão ----------
     const overall = mat(color);

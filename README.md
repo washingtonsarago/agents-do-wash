@@ -112,6 +112,13 @@ ouve "Cuidado com rm -rf!", quem está na web ouve "Confere o domínio antes de 
 ("Esse .env não vai pro git, né?", "Rotacionou aquela chave de API?"). Também solta dicas para o time todo. Às vezes exagera no jargão ("Isso tá vulnerável a TOCTOU com race no inode!"), o agente responde "Hã? Não entendi nada!" e ele traduz: "Resumindo: confere o arquivo na hora de usar 🙄".
 O agente concorda e responde ("Anotado!"). Também é só visual, sem custo de token; o botão 🛡️ no topo liga e desliga.
 
+## O CTO 💪
+
+Bem musculoso, de regata, shorts, faixa na testa, munhequeira, tênis neon e coqueteleira de whey. Dá bronca em todo mundo:
+nos agentes ("Bora, Bia! Mais uma série de testes!"), no chefe ("Chefe, menos bronca e mais entrega!"), no head de segurança
+("Segurança, fala português com o time!") e até no robô de limpeza. Quem leva bronca para, ouve e responde
+("Sim, chefe do chefe!", "Ok, ok… em português!"). O botão 💪 no topo liga e desliga.
+
 ## O robô de limpeza 🤖
 
 O Limpinho (robô de metal claro, tela no rosto, antena e esfregão) passa pano pelo escritório, pela copa, pela sala de
